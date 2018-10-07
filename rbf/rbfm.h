@@ -8,7 +8,6 @@
 #include "../rbf/pfm.h"
 
 using namespace std;
-
 // Record ID
 typedef struct
 {
@@ -133,7 +132,6 @@ protected:
 private:
   static RecordBasedFileManager *_rbf_manager;
   PagedFileManager *pfm;
-  FileHandle handle;
 };
 
 #endif
