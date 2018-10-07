@@ -2,7 +2,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <cmath>
-#include <cstdint>
 #include <cstring>
 
 struct Rinf{
@@ -131,7 +130,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const vector<Att
 
 
 	// prepare the null indicator array
-	char* nullIndicatorArray = (char*) malloc(nullFieldsIndicatorLength);
+	unsigned char* nullIndicatorArray = (unsigned char*) malloc(nullFieldsIndicatorLength);
 	memset(nullIndicatorArray,0,nullFieldsIndicatorLength);
 	memcpy(nullIndicatorArray, data, nullFieldsIndicatorLength);
 
@@ -145,7 +144,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const vector<Att
 
 	// copy the field values into the record
 	for(int attri=0; attri<numberOfFields; attri++){
-		bool isNull =  nullIndicatorArray[attri] & (1<<(numberOfFields - attri) );
+		bool isNull =  nullIndicatorArray[attri] & (1<<(nullFieldsIndicatorLength * 8 - 1 - attri) );
 		if (isNull){
 			continue;
 		}
@@ -171,17 +170,19 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const vector<Att
 
 	// Now read the record dictionary and find the first empty slot for insertion
 	char *pageRecordData = (char *)malloc(PAGE_SIZE);
-	RecordDictionary *dict;
+	RecordDictionary dict;
 	fileHandle.readPage(pageNum, pageRecordData);
-	dict = reinterpret_cast<RecordDictionary*>(pageRecordData);
-	unsigned int newRecordStart = dict->freeSpacePos;
-	unsigned char newRecordNum = dict->numberOfRecords;
+//	dict = reinterpret_cast<RecordDictionary*>(pageRecordData);
+	memcpy(&dict, pageRecordData, sizeof(struct RecordDictionary));
+	unsigned int newRecordStart = dict.freeSpacePos;
+	unsigned char newRecordNum = dict.numberOfRecords;
 
 	// Then update the dictionary and insert record at freeSpacePointer
-	dict->recordInfo[newRecordNum].startPos = newRecordStart;
-	dict->recordInfo[newRecordNum].offset = recordSizeInBytes;
-	dict->freeSpacePos = newRecordStart + (unsigned int)recordSizeInBytes;
+	dict.recordInfo[newRecordNum].startPos = newRecordStart;
+	dict.recordInfo[newRecordNum].offset = recordSizeInBytes;
+	dict.freeSpacePos = newRecordStart + (unsigned int)recordSizeInBytes;
 
+	memcpy(pageRecordData, &dict, sizeof(struct RecordDictionary));
 	memcpy(pageRecordData+newRecordStart, record, recordSizeInBytes);
 	fileHandle.writePage(pageNum, pageRecordData);
 
@@ -207,10 +208,45 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle, const vector<Attri
 	Rinf readRecordInfo = dict.recordInfo[rid.slotNum];
 	memcpy(data, (char *)pageData + readRecordInfo.startPos, readRecordInfo.offset);
 
+	free(pageData);
 	return 0;
 }
 
 RC RecordBasedFileManager::printRecord(const vector<Attribute> &recordDescriptor, const void *data) {
-    return -1;
+	size_t nullIndicatorSize = ceil(recordDescriptor.size()/8.0);
+	unsigned char* nullIndicator = (unsigned char *) malloc(nullIndicatorSize);
+	memcpy(nullIndicator, data, nullIndicatorSize );
+	size_t offset = nullIndicatorSize;
+	for(unsigned int attri=0; attri<recordDescriptor.size(); attri++){
+		Attribute attribute = recordDescriptor[attri];
+		bool isNull = nullIndicator[0] & (1 << (nullIndicatorSize * 8  - 1 - attri));
+		if (isNull){
+			printf("%s : NULL ", attribute.name.c_str());
+			continue;
+		}
+		if (attribute.type == TypeVarChar){
+			int length = 0;
+			memcpy(&length, (char *)data+offset, sizeof(int));
+			char *content = (char *)malloc(length);
+			memcpy(content, (char *)data+offset+sizeof(int), length);
+			offset = offset + sizeof(int) + length;
+			printf("%s : %s ", attribute.name.c_str(), content);
+			free(content);
+		}
+		else if (attribute.type == TypeInt){
+			int integerData = 0;
+			memcpy(&integerData, (char *)data+offset, sizeof(int));
+			offset = offset + sizeof(int);
+			printf("%s : %d ", attribute.name.c_str(), integerData);
+		}
+		else {
+			float realData = 0;
+			memcpy(&realData, (char *)data+offset, sizeof(int));
+			offset = offset + sizeof(float);
+			printf("%s : %f ", attribute.name.c_str(), realData);
+		}
+
+	}
+    return 0;
 }
 
