@@ -12,6 +12,12 @@ using namespace std;
 
 class FileHandle;
 
+struct FileStat{
+	unsigned numberOfPages;
+	unsigned readPageCounter;
+	unsigned writePageCounter;
+	unsigned appendPageCounter;
+};
 class PagedFileManager
 {
 public:
@@ -28,17 +34,22 @@ protected:
 
 private:
     static PagedFileManager *_pf_manager;
+    void initializeFileStat 	 (FILE* fStream); // initializes the page stats in a file
+    void updateFileStat 		 (FILE* fStream, FileStat& fileStat);
 };
 
 
 class FileHandle
 {
+private:
+	FILE *file;
+	const unsigned PAGE_START_COUNTER = sizeof(struct FileStat);
 public:
     // variables to keep the counter for each operation
     unsigned readPageCounter;
     unsigned writePageCounter;
     unsigned appendPageCounter;
-    
+    unsigned numberOfPages;
     FileHandle();                                                         // Default constructor
     ~FileHandle();                                                        // Destructor
 
@@ -47,6 +58,10 @@ public:
     RC appendPage(const void *data);                                      // Append a specific page
     unsigned getNumberOfPages();                                          // Get the number of pages in the file
     RC collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount);  // Put the current counter values into variables
+	FILE* getFile();
+	RC setFile(FILE *file);
+	void loadFileStats();
 }; 
+
 
 #endif
