@@ -44,20 +44,22 @@ PageNum getPageForRecordOfSize(FileHandle &fileHandle, size_t sizeInBytes){
 	}
 	PageNum pageNum;
 	void *data = malloc(PAGE_SIZE);
-	RecordDictionary *dict;
+	RecordDictionary dict;
 	for(pageNum=0; pageNum < fileHandle.getNumberOfPages(); pageNum++){
          fileHandle.readPage(pageNum, data);
-         dict = reinterpret_cast<RecordDictionary *> (data);
-         unsigned freeSpaceAvailable = PAGE_SIZE - dict->freeSpacePos;
-         if (freeSpaceAvailable > sizeInBytes || dict->numberOfRecords < RECORDS_PER_PAGE){
+//         dict = reinterpret_cast<RecordDictionary *> (data);
+         memcpy(&dict, data, sizeof(struct RecordDictionary));
+         unsigned freeSpaceAvailable = PAGE_SIZE - dict.freeSpacePos;
+         if (freeSpaceAvailable > sizeInBytes && dict.numberOfRecords < RECORDS_PER_PAGE){
         	 free(data);
         	 return pageNum;
          }
 	}
 	// none of the existing pages can fit the record
 	if (pageNum == fileHandle.getNumberOfPages()){
+		RecordDictionary dict;
 		memset(data,0,PAGE_SIZE);
-		memcpy(data,dict,sizeof(struct RecordDictionary));
+		memcpy(data,&dict,sizeof(struct RecordDictionary));
 		fileHandle.appendPage(data);
 	}
 	free(data);
@@ -181,6 +183,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle, const vector<Att
 	dict.recordInfo[newRecordNum].startPos = newRecordStart;
 	dict.recordInfo[newRecordNum].offset = recordSizeInBytes;
 	dict.freeSpacePos = newRecordStart + (unsigned int)recordSizeInBytes;
+	dict.numberOfRecords++;
 
 	memcpy(pageRecordData, &dict, sizeof(struct RecordDictionary));
 	memcpy(pageRecordData+newRecordStart, record, recordSizeInBytes);
