@@ -36,7 +36,7 @@ RC PagedFileManager::createFile(const string &fileName) {
 	// Check if file exists
 	if (fileExists(fileName.c_str())) {
 		// cerr << "PagedFileManager::createFile > File already exists: "
-				<< fileName << endl;
+//				<< fileName << endl;
 		return -1;
 	} else {
 		pageFile = std::fopen(fileName.c_str(), "wb+");
@@ -53,7 +53,7 @@ RC PagedFileManager::createFile(const string &fileName) {
 		// cerr << "PagedFileManager::createFile > Page Closed successfully";
 	} else {
 		// cerr
-				<< "PagedFileManager::createFile > Error encountered while closing page";
+//				<< "PagedFileManager::createFile > Error encountered while closing page";
 		return -1;
 	}
 	return 0;
@@ -78,14 +78,14 @@ void PagedFileManager::updateFileStat(FILE* pageFile, FileStat& fileStat) {
 RC PagedFileManager::destroyFile(const string &fileName) {
 	if (!fileExists(fileName.c_str())) {
 		// cerr << "PagedFileManager::destroyFile > File does not exists : "
-				<< fileName << endl;
+//				<< fileName << endl;
 		return -1;
 	}
 
 	if (!remove(fileName.c_str()) == 0) {
 		// cerr
-				<< "PagedFileManager::destroyFile > Error encountered while deleting the file"
-				<< endl;
+//				<< "PagedFileManager::destroyFile > Error encountered while deleting the file"
+//				<< endl;
 		return -1;
 	}
 
@@ -103,14 +103,14 @@ RC PagedFileManager::openFile(const string &fileName, FileHandle &fileHandle) {
 	// Return error if the fileHandle object is pointing to another file
 	if (fileHandle.getFile() != NULL) { // if file handle is in use
 		// cerr << "PagedFileManager::openFile > File handle already in use"
-				<< endl;
+//				<< endl;
 		return -1;
 	}
 
 	// Check that the file exists
 	if (!fileExists(fileName.c_str())) { // if file does not exist
 		// cerr << "PagedFileManager::openFile > File :" << fileName
-				<< "does not exist";
+//				<< "does not exist";
 		return -1;
 	}
 	// Open a file and make fileHandle point to it
@@ -165,8 +165,8 @@ FILE* FileHandle::getFile() {
 RC FileHandle::setFile(FILE* _file) {
 	if (file != NULL) {
 		// cerr
-				<< "FileHandle:: PROHIBITED : Attempting to open two streams using a single file handle"
-				<< endl;
+//				<< "FileHandle:: PROHIBITED : Attempting to open two streams using a single file handle"
+//				<< endl;
 		return -1;
 	}
 	file = _file;
@@ -185,7 +185,7 @@ RC FileHandle::readPage(PageNum pageNum, void *data) {
 	size_t pagesRead = fread(data, PAGE_SIZE, 1, file);
 	if (pagesRead != 1) {
 		// cerr
-				<< "FileHandle :: Unknown error encountered while reading pages from file";
+//				<< "FileHandle :: Unknown error encountered while reading pages from file";
 		return -1;
 	}
 	readPageCounter = readPageCounter + 1;
@@ -195,7 +195,7 @@ RC FileHandle::readPage(PageNum pageNum, void *data) {
 RC FileHandle::writePage(PageNum pageNum, const void *data) {
 	if (pageNum >= numberOfPages) {
 		// cerr << "FileHandle::writePage : page number index out of bounds : "
-				<< pageNum << endl;
+//				<< pageNum << endl;
 		return -1;
 	}
 	fseek(file, PAGE_START_COUNTER + PAGE_SIZE * pageNum, SEEK_SET);
@@ -235,8 +235,8 @@ RC FileHandle::collectCounterValues(unsigned &readPageCount,
 void FileHandle::loadFileStats() {
 	if (file == NULL) {
 		// cerr
-				<< "ERROR : Load stats should be called only after opening a file stream"
-				<< endl;
+//				<< "ERROR : Load stats should be called only after opening a file stream"
+//				<< endl;
 	}
 	FileStat fileStat;
 	fseek(file, 0, SEEK_SET);
