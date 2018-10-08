@@ -59,17 +59,17 @@ RC PagedFileManager::createFile(const string &fileName) {
 	return 0;
 }
 
-void PagedFileManager::initializeFileStat(FILE* pageFile){
+void PagedFileManager::initializeFileStat(FILE* pageFile) {
 	fseek(pageFile, 0, SEEK_SET);
 	FileStat initialStat;
-	initialStat.numberOfPages=0;
-	initialStat.readPageCounter=0;
-	initialStat.writePageCounter=0;
-	initialStat.appendPageCounter=0;
+	initialStat.numberOfPages = 0;
+	initialStat.readPageCounter = 0;
+	initialStat.writePageCounter = 0;
+	initialStat.appendPageCounter = 0;
 	fwrite(&initialStat, sizeof(struct FileStat), 1, pageFile);
 }
 
-void PagedFileManager::updateFileStat(FILE* pageFile, FileStat& fileStat){
+void PagedFileManager::updateFileStat(FILE* pageFile, FileStat& fileStat) {
 	// Move to beginning of file
 	fseek(pageFile, 0, SEEK_SET);
 	fwrite(&fileStat, sizeof(struct FileStat), 1, pageFile);
@@ -141,10 +141,9 @@ RC PagedFileManager::closeFile(FileHandle &fileHandle) {
 	// Flush the changes and close the file
 	int flushSuccess = fflush(file);
 	int closeSuccess = fclose(file);
-	if (flushSuccess == 0 && closeSuccess == 0){
+	if (flushSuccess == 0 && closeSuccess == 0) {
 		return 0;
-	}
-	else{
+	} else {
 		return -1;
 	}
 	delete file;
@@ -164,9 +163,11 @@ FILE* FileHandle::getFile() {
 }
 
 RC FileHandle::setFile(FILE* _file) {
-	if (file != NULL){
-		cerr << "FileHandle:: PROHIBITED : Attempting to open two streams using a single file handle" << endl;
-		return  -1;
+	if (file != NULL) {
+		cerr
+				<< "FileHandle:: PROHIBITED : Attempting to open two streams using a single file handle"
+				<< endl;
+		return -1;
 	}
 	file = _file;
 	return 0;
@@ -176,14 +177,15 @@ FileHandle::~FileHandle() {
 }
 
 RC FileHandle::readPage(PageNum pageNum, void *data) {
-	if (numberOfPages <= pageNum){
+	if (numberOfPages <= pageNum) {
 		cerr << "FileHandle :: page index out of bounds:" << pageNum;
 		return -1;
 	}
-	fseek(file,PAGE_START_COUNTER + pageNum * PAGE_SIZE, SEEK_SET);
+	fseek(file, PAGE_START_COUNTER + pageNum * PAGE_SIZE, SEEK_SET);
 	size_t pagesRead = fread(data, PAGE_SIZE, 1, file);
-	if (pagesRead != 1){
-		cerr << "FileHandle :: Unknown error encountered while reading pages from file";
+	if (pagesRead != 1) {
+		cerr
+				<< "FileHandle :: Unknown error encountered while reading pages from file";
 		return -1;
 	}
 	readPageCounter = readPageCounter + 1;
@@ -191,13 +193,14 @@ RC FileHandle::readPage(PageNum pageNum, void *data) {
 }
 
 RC FileHandle::writePage(PageNum pageNum, const void *data) {
-	if (pageNum >= numberOfPages){
-		cerr << "FileHandle::writePage : page number index out of bounds : " << pageNum << endl;
+	if (pageNum >= numberOfPages) {
+		cerr << "FileHandle::writePage : page number index out of bounds : "
+				<< pageNum << endl;
 		return -1;
 	}
 	fseek(file, PAGE_START_COUNTER + PAGE_SIZE * pageNum, SEEK_SET);
 	int pagesWritten = fwrite(data, PAGE_SIZE, 1, file);
-	if (pagesWritten != 1){
+	if (pagesWritten != 1) {
 		cerr << "Unknown error encountered while writing to a page" << endl;
 		return -1;
 	}
@@ -206,9 +209,9 @@ RC FileHandle::writePage(PageNum pageNum, const void *data) {
 }
 
 RC FileHandle::appendPage(const void *data) {
-	fseek(file,PAGE_START_COUNTER + numberOfPages * PAGE_SIZE, SEEK_SET);
+	fseek(file, PAGE_START_COUNTER + numberOfPages * PAGE_SIZE, SEEK_SET);
 	int pagesAppended = fwrite(data, PAGE_SIZE, 1, file);
-	if (pagesAppended != 1){
+	if (pagesAppended != 1) {
 		cerr << "Unknown error encountered while appending page";
 		return -1;
 	}
@@ -229,16 +232,18 @@ RC FileHandle::collectCounterValues(unsigned &readPageCount,
 	return 0;
 }
 
-void FileHandle::loadFileStats(){
- if (file == NULL){
-	 cerr << "ERROR : Load stats should be called only after opening a file stream" << endl;
- }
- FileStat fileStat;
- fseek(file, 0, SEEK_SET);
- fread(&fileStat, sizeof(struct FileStat), 1, file);
- numberOfPages = fileStat.numberOfPages;
- readPageCounter = fileStat.readPageCounter;
- writePageCounter = fileStat.writePageCounter;
- appendPageCounter = fileStat.appendPageCounter;
+void FileHandle::loadFileStats() {
+	if (file == NULL) {
+		cerr
+				<< "ERROR : Load stats should be called only after opening a file stream"
+				<< endl;
+	}
+	FileStat fileStat;
+	fseek(file, 0, SEEK_SET);
+	fread(&fileStat, sizeof(struct FileStat), 1, file);
+	numberOfPages = fileStat.numberOfPages;
+	readPageCounter = fileStat.readPageCounter;
+	writePageCounter = fileStat.writePageCounter;
+	appendPageCounter = fileStat.appendPageCounter;
 // The file read counter will advance after the file stats
 }
