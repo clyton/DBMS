@@ -5,7 +5,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
-#include <ostream>
+#include <bitset>
 
 #define SLOT_SIZE sizeof(struct SlotDirectory)
 
@@ -38,8 +38,8 @@ const r_slot PAGE_RECORD_INFO_OFFSET = PAGE_SIZE
  */
 r_slot getRecordDirectorySize(PageRecordInfo pri) {
 	r_slot numberOfRecords = pri.numberOfRecords;
-	return (numberOfRecords * sizeof(struct SlotDirectory) + sizeof(struct PageRecordInfo));
 	cout << "Entire Record Directory size is calculated as"<< numberOfRecords * sizeof(struct SlotDirectory) + sizeof(struct PageRecordInfo)<< endl;
+	return (numberOfRecords * sizeof(struct SlotDirectory) + sizeof(struct PageRecordInfo));
 }
 
 void getPageRecordInfo(PageRecordInfo& pageRecordInfo, char const* pageData) {
@@ -166,39 +166,107 @@ RC RecordBasedFileManager::closeFile(FileHandle &fileHandle) {
 	return pfm->closeFile(fileHandle);
 }
 
+r_slot getRecordMetaDataSize(const vector<Attribute> &recordDescriptor){
+	//
+	//  | 2bytes #ofField | 1 byte Tombstone Indicator | 2 bytes per field|
+
+	r_slot returnLength = sizeof(r_slot) +
+			sizeof(char) +
+			sizeof(r_slot)* recordDescriptor.size();
+	cout << "Size of Record meta Data of size " << recordDescriptor.size() << "is " << returnLength;
+	return returnLength;
+}
+
 RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 		const vector<Attribute> &recordDescriptor, const void *data, RID &rid) {
 	if (recordDescriptor.size() == 0) {
 		return -1;
 	}
-	size_t recordSizeInBytes = 0;
-	// find the memory needed to store a record
+
+	r_slot recordSizeInBytes = 0;
+	r_slot numberOfFields = recordDescriptor.size();
+	r_slot *fieldPointers = new r_slot[numberOfFields];
+
+// Add 2 byte of space to store number of fields
+	recordSizeInBytes += sizeof(r_slot);
+
+
+/**
+ * Add the space needed for 1 byte char to express if the record is a tombstone or not
+ * 0 - no tombstone. Actual Data
+ * 1 - tombstone
+ */
+	char isTombstone = 0;
+	recordSizeInBytes += sizeof(char);
+
+// Add space needed for field pointer array. Field pointers point to start of field
+	recordSizeInBytes = recordSizeInBytes + numberOfFields * sizeof(fieldPointers[0]); // 2 byte pointers for each field
+	cout << "Size of field pointer array is " << numberOfFields * sizeof(fieldPointers[0]) << endl;
+
+
+// Add space needed for null bytes indicator
+	int nullFieldsIndicatorLength = ceil(numberOfFields / 8.0);
+	recordSizeInBytes += nullFieldsIndicatorLength;
+
+	r_slot dataOffset = 0;
+	unsigned char * nullIndicatorArray = (unsigned char *)malloc(nullFieldsIndicatorLength);
+	memcpy(nullIndicatorArray, (char*)data + dataOffset, nullFieldsIndicatorLength);
+	dataOffset += nullFieldsIndicatorLength;
+
+// find the memory needed to store a record
 	for (size_t attri = 0; attri < recordDescriptor.size(); attri++) {
+		bool isNull = nullIndicatorArray[0]
+				& (1 << (nullFieldsIndicatorLength * 8 - 1 - attri));
+		if (isNull) {
+			cout << "Attribute " << attri << " ISNULL: data at offset " << dataOffset << " is null" << endl;
+			cout << "Attribute " << attri << " ISNULL: record offset : " << recordSizeInBytes << endl;
+			cout << "Attribute " << attri << " ISNULL: data offset : " << dataOffset << endl;
+			std::bitset<32> nullattbit(1 << (nullFieldsIndicatorLength * 8 - 1 - attri) );
+			cout << "Test bits " << nullattbit << endl;
+			cout << "Test" << nullIndicatorArray[attri] << endl;
+			fieldPointers[attri] = USHRT_MAX;
+			continue;
+		}
 		Attribute recordAttribute = recordDescriptor.at(attri);
 		if (recordAttribute.type == TypeInt
 				|| recordAttribute.type == TypeReal) {
+			cout << "Attribute " << attri << " ISNUMBER: record offset : " << recordSizeInBytes << endl;
+			cout << "Attribute " << attri << " ISNUMBER: data offset : " << dataOffset << endl;
+			fieldPointers[attri] = recordSizeInBytes; //point to field start
 			recordSizeInBytes += 4;
+			dataOffset += 4;
 		} else {
-			recordSizeInBytes = recordSizeInBytes + 4 + recordAttribute.length;
+			cout << "Attribute " << attri << " ISVARCHAR: record offset : " << recordSizeInBytes << endl;
+			cout << "Attribute " << attri << " ISVARCHAR: data offset : " << dataOffset << endl;
+			fieldPointers[attri] = recordSizeInBytes; // point to field start
+			int varStringLength = 0;
+			memcpy(&varStringLength, (char*)data + dataOffset, sizeof(int));
+			cout << "Attribute " << attri << " ISVARCHAR: var string length: " << varStringLength << endl;
+			recordSizeInBytes = recordSizeInBytes + sizeof(int) + varStringLength;
+			dataOffset = dataOffset + sizeof(int) + varStringLength;
 		}
 	}
-//	// Add the space needed for the null bytes indicator
-	int numberOfFields = recordDescriptor.size();
-	int nullFieldsIndicatorLength = ceil(numberOfFields / 8.0);
-	recordSizeInBytes += nullFieldsIndicatorLength;
-//
-//	// prepare the null indicator array
-//	unsigned char* nullIndicatorArray = (unsigned char*) malloc(
-//			nullFieldsIndicatorLength);
-//	memset(nullIndicatorArray, 0, nullFieldsIndicatorLength);
-//	memcpy(nullIndicatorArray, data, nullFieldsIndicatorLength);
-//
-	// Allocate memory for record data to write to page
-	void *record =  malloc(recordSizeInBytes);
+	// dataOffset should store size of incoming data at this point
 
-	// copy the nullIndicator bytes into record
-	memset(record, 0, recordSizeInBytes);
-	memcpy(record, data, recordSizeInBytes);
+	// Allocate memory for record data to write to page
+	char *record =  (char *)malloc(recordSizeInBytes);
+
+	// Copy no. of fields
+	int recordOffset = 0;
+	memcpy(record, &numberOfFields, sizeof(numberOfFields));
+	recordOffset += sizeof(numberOfFields);
+
+	// Copy tombstone indicator
+	memcpy(record + recordOffset, &isTombstone, sizeof(isTombstone));
+	recordOffset += sizeof(isTombstone);
+
+	// Copy field pointers
+	memcpy(record + recordOffset, fieldPointers, sizeof(fieldPointers[0]) * numberOfFields);
+	recordOffset = recordOffset + sizeof(fieldPointers[0]) * numberOfFields;
+
+	// Copy data
+	memcpy(record + recordOffset, data, dataOffset);
+
 //	memcpy(record, data, nullFieldsIndicatorLength);
 //	int offset = nullFieldsIndicatorLength;
 
@@ -274,7 +342,8 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
 	PageRecordInfo pri;
 	getPageRecordInfo(pri, (char *)pageData);
 	cout << "Record Directory : Number of records : " << pri.numberOfRecords <<". Free Space : " << pri.freeSpacePos << endl;
-	memcpy(data,  pageData + slot.offset, slot.length);
+	r_slot recordMetaDataLength = getRecordMetaDataSize(recordDescriptor);
+	memcpy(data,  pageData + slot.offset + recordMetaDataLength, slot.length - recordMetaDataLength);
 	free(pageData);
 	pageData = NULL;
 	return 0;
