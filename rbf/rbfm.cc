@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 
 struct Rinf {
@@ -125,48 +126,49 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 			recordSizeInBytes = recordSizeInBytes + 4 + recordAttribute.length;
 		}
 	}
-	// Add the space needed for the null bytes indicator
+//	// Add the space needed for the null bytes indicator
 	int numberOfFields = recordDescriptor.size();
 	int nullFieldsIndicatorLength = ceil(numberOfFields / 8.0);
 	recordSizeInBytes += nullFieldsIndicatorLength;
-
-	// prepare the null indicator array
-	unsigned char* nullIndicatorArray = (unsigned char*) malloc(
-			nullFieldsIndicatorLength);
-	memset(nullIndicatorArray, 0, nullFieldsIndicatorLength);
-	memcpy(nullIndicatorArray, data, nullFieldsIndicatorLength);
-
+//
+//	// prepare the null indicator array
+//	unsigned char* nullIndicatorArray = (unsigned char*) malloc(
+//			nullFieldsIndicatorLength);
+//	memset(nullIndicatorArray, 0, nullFieldsIndicatorLength);
+//	memcpy(nullIndicatorArray, data, nullFieldsIndicatorLength);
+//
 	// Allocate memory for record data to write to page
 	char *record = (char *) malloc(recordSizeInBytes);
 
 	// copy the nullIndicator bytes into record
 	memset(record, 0, recordSizeInBytes);
-	memcpy(record, data, nullFieldsIndicatorLength);
-	int offset = nullFieldsIndicatorLength;
+	memcpy(record, data, recordSizeInBytes);
+//	memcpy(record, data, nullFieldsIndicatorLength);
+//	int offset = nullFieldsIndicatorLength;
 
 	// copy the field values into the record
-	for (int attri = 0; attri < numberOfFields; attri++) {
-		bool isNull = nullIndicatorArray[attri]
-				& (1 << (nullFieldsIndicatorLength * 8 - 1 - attri));
-		if (isNull) {
-			continue;
-		}
-
-		Attribute currAttr = recordDescriptor[attri];
-		if (currAttr.type == TypeVarChar) {
-			memcpy(record + offset, (char *) data + offset,
-					currAttr.length + 4);
-			offset = offset + currAttr.length + 4;
-		} else {
-			memcpy(record + offset, (char *) data + offset, currAttr.length);
-			offset += 4;
-		}
-	}
+//	for (int attri = 0; attri < numberOfFields; attri++) {
+//		bool isNull = nullIndicatorArray[attri]
+//				& (1 << (nullFieldsIndicatorLength * 8 - 1 - attri));
+//		if (isNull) {
+//			continue;
+//		}
+//
+//		Attribute currAttr = recordDescriptor[attri];
+//		if (currAttr.type == TypeVarChar) {
+//			memcpy(record + offset, (char *) data + offset,
+//					currAttr.length + 4);
+//			offset = offset + currAttr.length + 4;
+//		} else {
+//			memcpy(record + offset, (char *) data + offset, currAttr.length);
+//			offset += 4;
+//		}
+//	}
 
 	// search for a page with free space greater than the record size
 	PageNum pageNum = getPageForRecordOfSize(fileHandle, recordSizeInBytes);
 	if (pageNum == UINT_MAX) {
-		free(nullIndicatorArray);
+//		free(nullIndicatorArray);
 		free(record);
 		return -1; // no insert possible for records greater than page size
 	}
@@ -196,7 +198,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 	// return 0
 
 	free(record);
-	free(nullIndicatorArray);
+//	free(nullIndicatorArray);
 	free(pageRecordData);
 
 	return 0;

@@ -2,7 +2,6 @@
 #include <rbf/pfm.h>
 #include <stddef.h>
 #include <unistd.h>
-#include <cstdio>
 #include <iostream>
 
 PagedFileManager* PagedFileManager::_pf_manager = 0;
