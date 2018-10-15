@@ -357,8 +357,9 @@ RC RecordBasedFileManager::printRecord(
 	size_t offset = nullIndicatorSize;
 	for (unsigned int attri = 0; attri < recordDescriptor.size(); attri++) {
 		Attribute attribute = recordDescriptor[attri];
-		bool isNull = nullIndicator[0]
-				& (1 << (nullIndicatorSize * 8 - 1 - attri));
+		int byteNumber = attri/8;
+		bool isNull = nullIndicator[byteNumber]
+				& (1 << (attri%8));
 		if (isNull) {
 			printf("%s : NULL ", attribute.name.c_str());
 			continue;
@@ -387,6 +388,10 @@ RC RecordBasedFileManager::printRecord(
 	return 0;
 }
 
+RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
+			const vector<Attribute> &recordDescriptor, const RID &rid){
+
+}
 RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 			const vector<Attribute> &recordDescriptor, const void *data,
 			const RID &rid){
