@@ -387,3 +387,67 @@ RC RecordBasedFileManager::printRecord(
 	return 0;
 }
 
+RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
+			const vector<Attribute> &recordDescriptor, const void *data,
+			const RID &rid){
+	// Get the page where the record is present
+
+	// Get the rid slot where the record is located
+	// if length of new record data < length of old record data
+			// place record at offset of old record, slot.offset
+			// update the length of old slot with new slot,
+					// oldLength = slot.length
+					// newLength = recordLength(data, recordDescriptor)
+					// slot.length = newLength
+			// memmove(page+slot.offset+slot.length, page+ slot.offset+oldLength, FreeSpacePointer - (slot.offset + oldLength))
+
+			// for each slot after the currently updated slot
+				// slot.offset = slot.offset - (oldLength - newLength);
+
+	//else if length of new record data > length of old record data && (newLength - oldLength) < freeSpaceAvailable
+			// delta <- |newLength - oldLength|
+			// currentSlot <- page.getSlot(rid.slot)
+			// nextSlot <- page.getSlot(rid.slot+1)
+
+			// memmove(page+nextSlot.offset + delta, page + nextSlot.offset, FreeSpacePointer - nextSlot.offset)
+			// for(all slots from nextSlot to endSlot)
+					// islot.offset= islot.offset + delta;
+	// else
+			// insertRid <- insertRecord(data, recordDescriptor)
+			// Record oldRecord
+			// void* oldRecordData
+			// readRecord(oldRecordData, recordDescriptor, rid)
+			// read(oldRecord, oldRecordData) ... cast data to Record object
+			// oldRecord.makeTombstone(insertRid)
+			// currentSlot <- page.getSlot(rid.slot)
+			// nextSlot <- page.getSlot(rid.slot + 1)
+					// set the tombstone byte to 1
+					// memcpy(oldRecord.getTombstoneEnd + 1, insertRid.pageNum, sizeof(r_slot))
+					// memcpy(oldRecord.getTombstoneEnd + 3, insertRid.slotNum, sizeof(r_slot))
+					// memmove(page + currentSlot + tombstoneRecordLength,  page + nextSlot.offset, currentSlot.length - tombstoneRecordLength)
+			// for(all slots from nextslot to endSlot
+					// islot.offset = islot.offset + currentSlot.length - tombstoneRecordLength
+
+	return 0;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
