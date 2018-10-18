@@ -8,8 +8,8 @@
 #include <cstring>
 
 #define SLOT_SIZE sizeof(struct SlotDirectory)
-typedef unsigned short int r_slot;
-
+const RC success = 0;
+const RC failure = 1;
 struct SlotDirectory
 {
   r_slot offset = 0;
@@ -18,7 +18,7 @@ struct SlotDirectory
 
 struct PageRecordInfo
 {
-  r_slot numberOfRecords = 0;
+  r_slot numberOfSlots = 0;
   /**
 	 * @{code freeSpacePointer} points to the first free space position available in the page
 	 *
@@ -30,6 +30,13 @@ struct PageRecordInfo
  * Start location of this struct in a page
  */
 const r_slot PAGE_RECORD_INFO_OFFSET = PAGE_SIZE - sizeof(struct PageRecordInfo);
+
+bool isFieldNull(unsigned char *nullIndicatorArray, int fieldIndex)
+{
+  int byteNumber = fieldIndex / 8;
+  bool isNull = nullIndicatorArray[byteNumber] & (1 << (7 - fieldIndex % 8));
+  return isNull;
+}
 
 r_slot getLengthOfRecord(const void *data,
                          const vector<Attribute> &recordDescriptor)
@@ -67,7 +74,7 @@ r_slot getLengthOfRecord(const void *data,
   // find the memory needed to store a record
   for (size_t attri = 0; attri < recordDescriptor.size(); attri++)
   {
-    bool isNull = nullIndicatorArray[0] & (1 << (nullFieldsIndicatorLength * 8 - 1 - attri));
+    bool isNull = isFieldNull(nullIndicatorArray, attri);
     if (isNull)
     {
       // cout << "Attribute " << attri << " ISNULL: data at offset " << dataOffset << " is null" << endl;
@@ -108,11 +115,11 @@ r_slot getLengthOfRecord(const void *data,
  * @return the size taken by array of SlotDirectories and the
  * 		   PageRecordInfo structure
  */
-r_slot getRecordDirectorySize(PageRecordInfo pri)
+r_slot getRecordDirectorySize(const PageRecordInfo &pri)
 {
-  r_slot numberOfRecords = pri.numberOfRecords;
+  r_slot numberOfRecords = pri.numberOfSlots;
   // cout << "Entire Record Directory size is calculated as"<< numberOfRecords * sizeof(struct SlotDirectory) + sizeof(struct PageRecordInfo)<< endl;
-  return ((numberOfRecords + 1) * sizeof(struct SlotDirectory) + sizeof(struct PageRecordInfo));
+  return (numberOfRecords * sizeof(struct SlotDirectory) + sizeof(struct PageRecordInfo));
 }
 
 void getPageRecordInfo(PageRecordInfo &pageRecordInfo, char const *pageData)
@@ -148,6 +155,57 @@ SlotDirectory getSlotForRID(char const *pageData, RID rid,
   // cout << "Slot for RID slot: " << rid.slotNum << " is : "<< 0 + slotStartPos << endl;
   return slot;
 }
+/**
+ *
+ * @param rid : RID of the slot to update
+ * @param pageData : memory buffer of the page where the slot is present
+ * @param updatedSlot : the new slot data
+ * @return
+ */
+RC updateSlotDirectory(const RID &rid, void *pageData,
+                       SlotDirectory &updatedSlot)
+{
+  memcpy(
+      (char *)pageData + PAGE_SIZE - sizeof(struct PageRecordInfo) - sizeof(struct SlotDirectory) * (rid.slotNum + 1),
+      &updatedSlot, sizeof(updatedSlot));
+  return success;
+}
+
+RC updatePageRecordInfo(PageRecordInfo &pri, void *pageData)
+{
+  memcpy((char *)pageData + PAGE_SIZE - sizeof(struct PageRecordInfo), &pri,
+         sizeof(struct PageRecordInfo));
+  return success;
+}
+/**
+ * Shifts the record by 'byBytesToShift' and updates their offsets
+ *
+ * @param pageData : the memory buffer on which the record resides
+ * @param slotNum : The record slot number
+ * @param byBytesToShift : If negative, shift record to left, else shift to
+ * right by 'ByBytesToShift'
+ * @return
+ */
+RC shiftRecord(char *pageData, const RID &rid, int byBytesToShift)
+{
+  SlotDirectory slotToShift;
+  getSlotForRID(pageData, rid, slotToShift);
+
+  if (slotToShift.offset + byBytesToShift < 0 ||
+      slotToShift.offset + byBytesToShift + slotToShift.length > PAGE_SIZE)
+  {
+    return failure;
+  }
+
+  memmove(pageData + slotToShift.offset + byBytesToShift,
+          pageData + slotToShift.offset, slotToShift.length);
+
+  slotToShift.offset += byBytesToShift;
+
+  updateSlotDirectory(rid, pageData, slotToShift);
+
+  return success;
+}
 
 /**
  * This method gets the best first page found where a record of size specified
@@ -161,8 +219,8 @@ SlotDirectory getSlotForRID(char const *pageData, RID rid,
  * @param pageData : pointer pointing to a memory buffer of size PAGE_SIZE
  * @return
  */
-PageNum getPageForRecordOfSize(FileHandle &fileHandle, r_slot sizeInBytes,
-                               char *pageData, r_slot &recordNo, r_slot &startPos)
+RID getPageForRecordOfSize(FileHandle &fileHandle, r_slot sizeInBytes,
+                           char *pageData)
 {
   //	if (sizeInBytes > (PAGE_SIZE - sizeof(struct SlotDirectory)- sizeof(struct PageRecordInfo))) {
   //		return UINT_MAX; // sentinel value to indicate impossible to add record
@@ -177,39 +235,58 @@ PageNum getPageForRecordOfSize(FileHandle &fileHandle, r_slot sizeInBytes,
                                 - (pageRecordInfo.freeSpacePos);                   // pg occupied from top
     if (freeSpaceAvailable > sizeInBytes)
     {
+      // Check if a slot position is empty
+      RID eachRID;
+      eachRID.pageNum = pageNum;
+      eachRID.slotNum = 0;
+      for (; eachRID.slotNum < pageRecordInfo.numberOfSlots;
+           eachRID.slotNum++)
+      {
+        SlotDirectory currentSlot;
+        getSlotForRID(pageData, eachRID, currentSlot);
+        if (currentSlot.offset == USHRT_MAX)
+          return eachRID;
+      }
+
       SlotDirectory newSlot;
       newSlot.offset = pageRecordInfo.freeSpacePos;
       newSlot.length = sizeInBytes;
       addSlotDirectory(pageRecordInfo, newSlot, pageData);
-      pageRecordInfo.numberOfRecords++;
-      pageRecordInfo.freeSpacePos += sizeInBytes;
+
+      pageRecordInfo.numberOfSlots++;
+      //			pageRecordInfo.freeSpacePos += sizeInBytes;
       putPageRecordInfo(pageRecordInfo, pageData);
-      recordNo = pageRecordInfo.numberOfRecords - 1;
-      startPos = newSlot.offset;
-      fileHandle.writePage(pageNum, pageData);
-      return pageNum;
+      //			fileHandle.writePage(pageNum, pageData);
+      RID newRid;
+      newRid.pageNum = pageNum;
+      newRid.slotNum = pageRecordInfo.numberOfSlots - 1;
+      return newRid;
     }
   }
   // none of the existing pages can fit the record
-  if (pageNum == fileHandle.getNumberOfPages())
-  {
-    SlotDirectory slot;
-    PageRecordInfo pri;
-    slot.offset = 0;
-    slot.length = sizeInBytes;
-    addSlotDirectory(pri, slot, pageData);
-    pri.freeSpacePos = sizeInBytes;
-    pri.numberOfRecords = 1;
-    putPageRecordInfo(pri, pageData);
-    fileHandle.appendPage(pageData);
-    recordNo = pri.numberOfRecords - 1;
-    startPos = slot.offset;
-    // cout << "Appending record in page " << pageNum << "at offset " << startPos << "The length of slot is" << slot.length << endl;
-    // cout << "Record Directory Entry: Number Of Records : " << pri.numberOfRecords << endl;
-    // cout << "Record Directory Entry: Free Space Pos: " << pri.freeSpacePos << endl;
-    //		// cout << "Record Directory Entry: Free Space Pos: " << pri.freeSpacePos << endl;
-  }
-  return fileHandle.getNumberOfPages() - 1;
+  //	if (pageNum == fileHandle.getNumberOfPages()) {
+  PageRecordInfo pri;
+  pri.freeSpacePos = 0;
+  pri.numberOfSlots = 0;
+  SlotDirectory slot;
+  slot.offset = 0;
+  slot.length = sizeInBytes;
+  addSlotDirectory(pri, slot, pageData);
+  pri.numberOfSlots = 1;
+  putPageRecordInfo(pri, pageData);
+  fileHandle.appendPage(pageData);
+  //		recordNo = pri.numberOfSlots - 1;
+  //		startPos = slot.offset;
+  RID appendPageRid;
+  appendPageRid.pageNum = fileHandle.getNumberOfPages() - 1;
+  appendPageRid.slotNum = 0;
+  // cout << "Appending record in page " << pageNum << "at offset " << startPos << "The length of slot is" << slot.length << endl;
+  // cout << "Record Directory Entry: Number Of Records : " << pri.numberOfRecords << endl;
+  // cout << "Record Directory Entry: Free Space Pos: " << pri.freeSpacePos << endl;
+  //		// cout << "Record Directory Entry: Free Space Pos: " << pri.freeSpacePos << endl;
+  return appendPageRid;
+
+  //	}
 }
 
 RecordBasedFileManager *RecordBasedFileManager::_rbf_manager = 0;
@@ -303,7 +380,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
   // find the memory needed to store a record
   for (size_t attri = 0; attri < recordDescriptor.size(); attri++)
   {
-    bool isNull = nullIndicatorArray[0] & (1 << (nullFieldsIndicatorLength * 8 - 1 - attri));
+    bool isNull = isFieldNull(nullIndicatorArray, attri);
     if (isNull)
     {
       // cout << "Attribute " << attri << " ISNULL: data at offset " << dataOffset << " is null" << endl;
@@ -356,7 +433,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
          sizeof(fieldPointers[0]) * numberOfFields);
   recordOffset = recordOffset + sizeof(fieldPointers[0]) * numberOfFields;
 
-  // Copy data
+  // Copy Null indicator array + data. Null indicator array already given in data
   memcpy(record + recordOffset, data, dataOffset);
 
   //	memcpy(record, data, nullFieldsIndicatorLength);
@@ -384,13 +461,24 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
   // search for a page with free space greater than the record size
 
   char *pageRecordData = (char *)malloc(PAGE_SIZE);
-  r_slot recordNo;
-  r_slot startPos;
-  PageNum pageNum = getPageForRecordOfSize(fileHandle, recordSizeInBytes,
-                                           pageRecordData, recordNo, startPos);
-  fileHandle.readPage(pageNum, pageRecordData);
-  memcpy(pageRecordData + startPos, record, recordSizeInBytes);
-  fileHandle.writePage(pageNum, pageRecordData);
+  RID insertRID = getPageForRecordOfSize(fileHandle, recordSizeInBytes,
+                                         pageRecordData);
+
+  PageRecordInfo pri;
+  getPageRecordInfo(pri, pageRecordData);
+  SlotDirectory insertSlot;
+  getSlotForRID(pageRecordData, insertRID, insertSlot);
+
+  insertSlot.offset = pri.freeSpacePos;
+  insertSlot.length = recordSizeInBytes;
+  pri.freeSpacePos += recordSizeInBytes;
+
+  updatePageRecordInfo(pri, pageRecordData);
+  updateSlotDirectory(insertRID, pageRecordData, insertSlot);
+  //	r_slot startPos =
+
+  memcpy(pageRecordData + insertSlot.offset, record, recordSizeInBytes);
+  fileHandle.writePage(insertRID.pageNum, pageRecordData);
 
   // Now read the record dictionary and find the first empty slot for insertion
   //	fileHandle.readPage(pageNum, pageRecordData);
@@ -410,8 +498,8 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
   //	fileHandle.writePage(pageNum, pageRecordData);
   //
   // update the new rid for the record
-  rid.pageNum = pageNum;
-  rid.slotNum = recordNo;
+  rid.pageNum = insertRID.pageNum;
+  rid.slotNum = insertRID.slotNum;
   // return 0
 
   free(record);
@@ -431,6 +519,12 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
 
   SlotDirectory slot;
   getSlotForRID(pageData, rid, slot);
+
+  // If trying to read a deleted record return failure
+  if (slot.offset == USHRT_MAX)
+  {
+    return failure;
+  }
   // cout << "Reading Data" << endl;
   // cout << "For slot " << rid.slotNum << " : Slot offset from file is "<<  slot.offset << ". And slot length is " << slot.length << endl;
   PageRecordInfo pri;
@@ -441,7 +535,7 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
          slot.length - recordMetaDataLength);
   free(pageData);
   pageData = NULL;
-  return 0;
+  return success;
 }
 
 RC RecordBasedFileManager::printRecord(
@@ -454,8 +548,7 @@ RC RecordBasedFileManager::printRecord(
   for (unsigned int attri = 0; attri < recordDescriptor.size(); attri++)
   {
     Attribute attribute = recordDescriptor[attri];
-    int byteNumber = attri / 8;
-    bool isNull = nullIndicator[byteNumber] & (1 << (attri % 8));
+    bool isNull = isFieldNull(nullIndicator, attri);
     if (isNull)
     {
       printf("%s : NULL ", attribute.name.c_str());
@@ -494,14 +587,60 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
 {
 
   PageNum pageNum = rid.pageNum;
-  r_slot slotNum = rid.slotNum;
 
   // read page from which to delete record
   char *pageData = (char *)malloc(PAGE_SIZE);
   fileHandle.readPage(pageNum, pageData);
 
+  // get the record directory information
+  PageRecordInfo pri;
+  getPageRecordInfo(pri, pageData);
+
+  // get the slot directory
+  SlotDirectory slotToDelete;
+  getSlotForRID(pageData, rid, slotToDelete);
+  r_slot lengthOfDeletedRecord = slotToDelete.length;
+
+  // Are you deleting the last record in the page
+  if (rid.slotNum + 1 == pri.numberOfSlots)
+  {
+    slotToDelete.offset = USHRT_MAX;
+    updateSlotDirectory(rid, pageData, slotToDelete);
+
+    pri.freeSpacePos -= lengthOfDeletedRecord;
+    updatePageRecordInfo(pri, pageData);
+
+    RC writeStatus = fileHandle.writePage(pageNum, pageData);
+    return writeStatus;
+  }
+  else
+  {
+    // for each consecutive record
+    slotToDelete.offset = USHRT_MAX;
+    updateSlotDirectory(rid, pageData, slotToDelete);
+
+    //		pri.numberOfRecords -= 1;
+    pri.freeSpacePos -= lengthOfDeletedRecord;
+    updatePageRecordInfo(pri, pageData);
+
+    for (r_slot islot = rid.slotNum + 1; islot < pri.numberOfSlots;
+         islot++)
+    {
+      RID ridOfRecordToShift;
+      ridOfRecordToShift.pageNum = pageNum;
+      ridOfRecordToShift.slotNum = islot;
+
+      // shift record to left
+      shiftRecord(pageData, ridOfRecordToShift, -lengthOfDeletedRecord);
+    }
+
+    RC writeStatus = fileHandle.writePage(pageNum, pageData);
+    return writeStatus;
+  }
+
   // get the slot directory
 }
+
 RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
                                         const vector<Attribute> &recordDescriptor, const void *data,
                                         const RID &rid)
@@ -582,4 +721,165 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
   // islot.offset = islot.offset + currentSlot.length - tombstoneRecordLength
 
   return 0;
+}
+
+RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
+                                         const vector<Attribute> &recordDescriptor, const RID &rid,
+                                         const string &attributeName, void *data)
+{
+
+  char *pageData = (char *)malloc(PAGE_SIZE);
+  fileHandle.readPage(rid.pageNum, pageData);
+
+  SlotDirectory recordSlot;
+  getSlotForRID(pageData, rid, recordSlot);
+
+  char *recordData = (char *)malloc(recordSlot.length);
+  memcpy(recordData, pageData + recordSlot.offset, recordSlot.length);
+
+  Record record = Record(recordDescriptor, recordData);
+  string attributeValue = record.getAttributeValue(attributeName);
+  memcpy(data, &attributeValue, attributeValue.size());
+
+  free(pageData);
+  free(recordData);
+  return success;
+}
+
+void Record::setNumberOfFields()
+{
+  memcpy(&numberOfFields, recordData, sizeof(numberOfFields));
+}
+
+void Record::setTombstoneIndicator()
+{
+  memcpy(&tombstoneIndicator, recordData + sizeof(numberOfFields),
+         sizeof(tombstoneIndicator));
+}
+
+void Record::setFieldPointers()
+{
+  fieldPointers = new r_slot[numberOfFields];
+  memcpy(&fieldPointers,
+         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator),
+         sizeof(r_slot) * numberOfFields);
+}
+
+void Record::setInputData()
+{
+  r_slot sizeOfInputData = getRawRecordSize();
+  memcpy(inputData,
+         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(r_slot) * numberOfFields, sizeOfInputData);
+}
+
+void Record::setNullIndicatorArray()
+{
+  r_slot sizeOfNullIndicatorArray = 0;
+  sizeOfNullIndicatorArray = ceil(numberOfFields / 8.0);
+
+  memcpy(nullIndicatorArray,
+         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(r_slot) * numberOfFields,
+         sizeOfNullIndicatorArray);
+}
+
+r_slot Record::getRawRecordSize()
+{
+  r_slot lastFieldPointer = fieldPointers[numberOfFields - 1];
+  AttrType lastRecordType = recordDescriptor[numberOfFields - 1].type;
+  int lastFieldLength = 0;
+  if (lastRecordType == TypeVarChar)
+  {
+    memcpy(&lastFieldLength, recordData + lastFieldPointer,
+           sizeof(lastFieldLength));
+    lastFieldLength += 4;
+  }
+  else
+  {
+    lastFieldLength = 4;
+  }
+  r_slot sizeOfInputData = lastFieldPointer + lastFieldLength - fieldPointers[0];
+  return sizeOfInputData;
+}
+
+Record::Record(const vector<Attribute> &recordDesc,
+               char *const dataOfStoredRecord)
+{
+  recordDescriptor = recordDesc;
+  recordData = dataOfStoredRecord;
+
+  setNumberOfFields();
+  setTombstoneIndicator();
+  setFieldPointers();
+  setInputData();
+  setNullIndicatorArray();
+}
+//	~Record(){
+//		delete rawData;
+//		delete recordData;
+//		rawData = NULL;
+//		recordData = NULL;
+//	}
+
+r_slot Record::getNumberOfFields()
+{
+  return numberOfFields;
+}
+
+r_slot Record::getRecordSize()
+{
+
+  return getRawRecordSize() + getRecordMetaDataSize(recordDescriptor);
+}
+
+string Record::getAttributeValue(const string &attributeName)
+{
+  r_slot fieldPointerIndex = 0;
+  for (Attribute a : recordDescriptor)
+  {
+    if (a.name.compare(attributeName))
+    {
+      break;
+    }
+    fieldPointerIndex++;
+  }
+
+  return getAttributeValue(fieldPointerIndex);
+}
+
+string Record::getAttributeValue(r_slot fieldNumber)
+{
+  if (isFieldNull(fieldNumber))
+  {
+    return NULL;
+  }
+  r_slot fieldStartPointer = fieldPointers[fieldNumber];
+  string attributeValue = "";
+  Attribute attributeMetaData;
+  if (attributeMetaData.type == TypeVarChar)
+  {
+    int lengthOfString = 0;
+    memcpy(&lengthOfString, recordData + fieldStartPointer,
+           sizeof(lengthOfString));
+    memcpy(&attributeValue,
+           recordData + fieldStartPointer + sizeof(lengthOfString),
+           lengthOfString);
+  }
+  else
+  {
+    memcpy(&attributeValue, recordData + fieldStartPointer, 4);
+  }
+  return attributeValue;
+}
+
+bool Record::isTombstone()
+{
+  return (tombstoneIndicator == 1);
+}
+
+bool Record::isFieldNull(r_slot fieldIndex)
+{
+
+  int byteNumber = fieldIndex / 8;
+  bool isNull = nullIndicatorArray[byteNumber] & (1 << (7 - fieldIndex % 8));
+  return isNull;
 }
