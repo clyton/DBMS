@@ -8,6 +8,7 @@
 #include "../rbf/pfm.h"
 
 using namespace std;
+typedef unsigned short int r_slot;
 // Record ID
 typedef struct {
 	unsigned pageNum;    // page number
@@ -147,6 +148,55 @@ protected:
 private:
 	static RecordBasedFileManager *_rbf_manager;
 	PagedFileManager *pfm;
+};
+
+class Record {
+
+private:
+	vector<Attribute> recordDescriptor;
+	char * recordData;
+	r_slot recordSize;
+
+	r_slot numberOfFields = 0;
+	char tombstoneIndicator = 0;
+	r_slot *fieldPointers;
+	char* inputData = NULL;
+	unsigned char* nullIndicatorArray = NULL;
+
+	void setNumberOfFields();
+
+	void setTombstoneIndicator();
+
+	void setFieldPointers();
+
+	void setInputData();
+
+	void setNullIndicatorArray();
+
+	r_slot getRawRecordSize();
+
+public:
+	Record(const vector<Attribute> &recordDesc,
+			char * const dataOfStoredRecord);
+//	~Record(){
+//		delete rawData;
+//		delete recordData;
+//		rawData = NULL;
+//		recordData = NULL;
+//	}
+
+	r_slot getNumberOfFields();
+
+	r_slot getRecordSize();
+
+	string getAttributeValue(const string &attributeName);
+
+	string getAttributeValue(r_slot fieldNumber);
+
+	bool isTombstone();
+
+	bool isFieldNull(r_slot fieldIndex);
+
 };
 
 #endif
