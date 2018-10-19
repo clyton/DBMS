@@ -663,36 +663,64 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 
   // if length of new record data < length of old record data
   r_slot newRecordLength = getLengthOfRecord(data, recordDescriptor);
-  if (newRecordLength <= slot.length)
+  short oldLength = slot.length;
+  short lengthDiff = oldLength - newRecordLength;
+  if (newRecordLength < slot.length) //TODO: Check equality condition
   {
     // place record at offset of old record, slot.offset
     memcpy(pageData + slot.offset, data, newRecordLength);
 
     // update the length of old slot with new slot,
-    short oldLength = slot.length;
     slot.length = newRecordLength;
+    updateSlotDirectory(rid, pageData, slot);
 
-    // memmove(page+slot.offset+slot.length, page+ slot.offset+oldLength, FreeSpacePointer - (slot.offset + oldLength))
-    memmove(page + slot.offset + slot.length, page + slot.offset + oldLength, FreeSpacePointer - (slot.offset + oldLength))
-    // for each slot after the currently updated slot
+    pageRecordInfo.freeSpacePos -= (lengthDiff);
+    updatePageRecordInfo(pageRecordInfo, pageData);
 
-    // slot.offset = slot.offset - (oldLength - newLength);
+    for (r_slot islot = rid.slotNum + 1; islot < pageRecordInfo.numberOfSlots;
+         islot++)
+    {
+      RID ridOfRecordToShift;
+      ridOfRecordToShift.pageNum = pageNum;
+      ridOfRecordToShift.slotNum = islot;
+
+      // shift record to left
+      shiftRecord(pageData, ridOfRecordToShift, -lengthDiff);
+    }
+
+    RC writeStatus = fileHandle.writePage(pageNum, pageData);
   }
   else if (newRecordLength > slot.length)
   {
     if (freeSpaceAvailable >= newRecordLength - slot.length)
     {
+      for (r_slot islot = pageRecordInfo.numberOfSlots - 1; islot > rid.slotNum;
+           islot--)
+      {
+        RID ridOfRecordToShift;
+        ridOfRecordToShift.pageNum = pageNum;
+        ridOfRecordToShift.slotNum = islot;
+
+        // shift record to right
+        shiftRecord(pageData, ridOfRecordToShift, -lengthDiff);
+      }
+
+      // place record at offset of old record, slot.offset
+      memcpy(pageData + slot.offset, data, newRecordLength);
+
+      // update the length of old slot with new slot,
+      slot.length = newRecordLength;
+      updateSlotDirectory(rid, pageData, slot);
+
+      pageRecordInfo.freeSpacePos += (-lengthDiff);
+      updatePageRecordInfo(pageRecordInfo, pageData);
     }
     else
     {
+      //Move record to new page and leave tombstone
     }
-    //Check if (freeSpace >= (newLength - oldLength))
-    //shift the records after the old record by (newLength - oldLength)
-    //memmove new record over (old record + freed up space)
-    //update each slot offset of shifted record
-    //update freeSpaceOffset = freeSpaceOffset + (newLength - oldLength)
   }
-  else if ()
+  else if (newRecordLength == slot.length)
   {
   }
 
