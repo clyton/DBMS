@@ -52,9 +52,10 @@ r_slot getLengthOfRecord(const void *data,
 	 * Add the space needed for 1 byte char to express if the record is a tombstone or not
 	 * 0 - no tombstone. Actual Data
 	 * 1 - tombstone
+   * Add 4 bytes of RID struct to hold the tombstone indicator
 	 */
   char isTombstone = 0;
-  recordSizeInBytes += sizeof(char);
+  recordSizeInBytes += sizeof(char) + sizeof(struct RID);
 
   // Add space needed for field pointer array. Field pointers point to start of field
   recordSizeInBytes = recordSizeInBytes + numberOfFields * sizeof(fieldPointers[0]); // 2 byte pointers for each field
@@ -358,9 +359,10 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 	 * Add the space needed for 1 byte char to express if the record is a tombstone or not
 	 * 0 - no tombstone. Actual Data
 	 * 1 - tombstone
+   * struct RID to store Tombstone indicator pointer
 	 */
   char isTombstone = 0;
-  recordSizeInBytes += sizeof(char);
+  recordSizeInBytes += sizeof(char) + sizeof(struct RID);
 
   // Add space needed for field pointer array. Field pointers point to start of field
   recordSizeInBytes = recordSizeInBytes + numberOfFields * sizeof(fieldPointers[0]); // 2 byte pointers for each field
@@ -427,6 +429,9 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
   // Copy tombstone indicator
   memcpy(record + recordOffset, &isTombstone, sizeof(isTombstone));
   recordOffset += sizeof(isTombstone);
+
+  //incrementing tombstone indicator pointer
+  recordOffset += sizeof(struct RID);
 
   // Copy field pointers
   memcpy(record + recordOffset, fieldPointers,
@@ -665,10 +670,10 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
   r_slot newRecordLength = getLengthOfRecord(data, recordDescriptor);
   short oldLength = slot.length;
   short lengthDiff = oldLength - newRecordLength;
-  if (newRecordLength < slot.length) //TODO: Check equality condition
+  if (newRecordLength < slot.length)
   {
     // place record at offset of old record, slot.offset
-    memcpy(pageData + slot.offset, data, newRecordLength);
+    memmove(pageData + slot.offset, data, newRecordLength);
 
     // update the length of old slot with new slot,
     slot.length = newRecordLength;
@@ -687,8 +692,6 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
       // shift record to left
       shiftRecord(pageData, ridOfRecordToShift, -lengthDiff);
     }
-
-    RC writeStatus = fileHandle.writePage(pageNum, pageData);
   }
   else if (newRecordLength > slot.length)
   {
@@ -706,7 +709,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
       }
 
       // place record at offset of old record, slot.offset
-      memcpy(pageData + slot.offset, data, newRecordLength);
+      memmove(pageData + slot.offset, data, newRecordLength);
 
       // update the length of old slot with new slot,
       slot.length = newRecordLength;
@@ -717,37 +720,27 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
     }
     else
     {
-      //Move record to new page and leave tombstone
+      //Update the tombstone to 1
+      isTombstone = 1;
+      memmove(pageData + slot.offset + SLOT_SIZE, &isTombstone, sizeof(char));
+      //Move record to next available page and leave tombstone
+      RID newRID;
+      insertRecord(fileHandle, recordDescriptor, data, &newRID);
+      //Update the tombstone indicator pointer
+      memmove(pageData + slot.offset + SLOT_SIZE + sizeof(char), &newRID, sizeof(struct RID));
+      //TODO: Confirm if you need to compact page here?
     }
   }
   else if (newRecordLength == slot.length)
   {
+    // place record at offset of old record, slot.offset
+    memmove(pageData + slot.offset, data, newRecordLength);
   }
 
-  //else if length of new record data > length of old record data && (newLength - oldLength) < freeSpaceAvailable
-  // delta <- |newLength - oldLength|
-  // currentSlot <- page.getSlot(rid.slot)
-  // nextSlot <- page.getSlot(rid.slot+1)
+  RC writeStatus = fileHandle.writePage(pageNum, pageData);
 
-  // memmove(page+nextSlot.offset + delta, page + nextSlot.offset, FreeSpacePointer - nextSlot.offset)
-  // for(all slots from nextSlot to endSlot)
-  // islot.offset= islot.offset + delta;
-  // else
-  // insertRid <- insertRecord(data, recordDescriptor)
-  // Record oldRecord
-  // void* oldRecordData
-  // readRecord(oldRecordData, recordDescriptor, rid)
-  // read(oldRecord, oldRecordData) ... cast data to Record object
-  // oldRecord.makeTombstone(insertRid)
-  // currentSlot <- page.getSlot(rid.slot)
-  // nextSlot <- page.getSlot(rid.slot + 1)
-  // set the tombstone byte to 1
-  // memcpy(oldRecord.getTombstoneEnd + 1, insertRid.pageNum, sizeof(r_slot))
-  // memcpy(oldRecord.getTombstoneEnd + 3, insertRid.slotNum, sizeof(r_slot))
-  // memmove(page + currentSlot + tombstoneRecordLength,  page + nextSlot.offset, currentSlot.length - tombstoneRecordLength)
-  // for(all slots from nextslot to endSlot
-  // islot.offset = islot.offset + currentSlot.length - tombstoneRecordLength
-
+  free(pageData);
+  pageData = NULL;
   return 0;
 }
 
