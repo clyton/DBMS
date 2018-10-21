@@ -1022,6 +1022,35 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     //When hit found break loop
     //Extract attributes from record and return
     rbfm->readRecord(fileHandle, recordDescriptor, rid, &data);
+
+    r_slot fieldPointerIndex = 0;
+    AttrType conditionAttributeType;
+    for (Attribute a : recordDescriptor)
+    {
+      if (a.name.compare(conditionAttribute))
+      {
+        conditionAttributeType = a.type;
+        break;
+      }
+      fieldPointerIndex++;
+    }
+
+    r_slot fieldStartPointer = fieldPointers[fieldPointerIndex];
+    string attributeValue = "";
+    if (conditionAttributeType == TypeVarChar)
+    {
+      int lengthOfString = 0;
+      memcpy(&lengthOfString, (char *)recordData + fieldStartPointer,
+             sizeof(lengthOfString));
+      memcpy(&attributeValue,
+             (char *)recordData + fieldStartPointer + sizeof(lengthOfString),
+             lengthOfString);
+    }
+    else
+    {
+      memcpy(&attributeValue, (char *)recordData + fieldStartPointer, 4);
+    }
+
   }
 
   return 0;
