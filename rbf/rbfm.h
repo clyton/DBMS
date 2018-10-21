@@ -177,6 +177,7 @@ private:
 
   r_slot numberOfFields = 0;
   char tombstoneIndicator = 0;
+  RID tombstoneRID;
   r_slot *fieldPointers;
   char *inputData = NULL;
   unsigned char *nullIndicatorArray = NULL;
@@ -184,6 +185,8 @@ private:
   void setNumberOfFields();
 
   void setTombstoneIndicator();
+
+  void setTombstoneIndicatorPtr();
 
   void setFieldPointers();
 

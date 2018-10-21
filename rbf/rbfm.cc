@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 
 #define SLOT_SIZE sizeof(struct SlotDirectory)
 const RC success = 0;
@@ -800,36 +801,6 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const vector<Attribute> 
   rbfm_ScanIterator.conditionAttribute = conditionAttribute;
   rbfm_ScanIterator.value = value;
 
-  // if (compOp != NO_OP)
-  // {
-  //   rbfm_ScanIterator.conditionAttribute = conditionAttribute;
-
-  //   AttrType type;
-  //   extractConditionAttributeType(type, recordDescriptor, conditionAttribute);
-  //   rbfm_ScanIterator.conditionAttributeType = type;
-
-  //   switch (type)
-  //   {
-
-  //   case TypeInt:
-  //     rbfm_ScanIterator.value = malloc(sizeof(int));
-  //     memcpy(rbfm_ScanIterator.value, value, sizeof(int));
-  //     break;
-
-  //   case TypeReal:
-  //     rbfm_ScanIterator.value = malloc(sizeof(float));
-  //     memcpy(rbfm_ScanIterator.value, value, sizeof(float));
-  //     break;
-
-  //   case TypeVarChar:
-  //     int length = 0;
-  //     memcpy(&length, value, sizeof(int));
-  //     rbfm_ScanIterator.value = malloc(sizeof(int) + length);
-  //     memcpy(rbfm_ScanIterator.value, value, sizeof(int) + length);
-  //     break;
-  //   }
-  // }
-
   rbfm_ScanIterator.nextRID.pageNum = 0;
   rbfm_ScanIterator.nextRID.slotNum = 0;
   rbfm_ScanIterator.isEOF = 0;
@@ -871,11 +842,17 @@ void Record::setTombstoneIndicator()
          sizeof(tombstoneIndicator));
 }
 
+void Record::setTombstoneIndicatorPtr()
+{
+  memcpy(&tombstoneRID, recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator),
+         sizeof(struct RID));
+}
+
 void Record::setFieldPointers()
 {
   fieldPointers = new r_slot[numberOfFields];
   memcpy(&fieldPointers,
-         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator),
+         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID),
          sizeof(r_slot) * numberOfFields);
 }
 
@@ -883,7 +860,7 @@ void Record::setInputData()
 {
   r_slot sizeOfInputData = getRawRecordSize();
   memcpy(inputData,
-         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(r_slot) * numberOfFields, sizeOfInputData);
+         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields, sizeOfInputData);
 }
 
 void Record::setNullIndicatorArray()
@@ -892,7 +869,7 @@ void Record::setNullIndicatorArray()
   sizeOfNullIndicatorArray = ceil(numberOfFields / 8.0);
 
   memcpy(nullIndicatorArray,
-         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(r_slot) * numberOfFields,
+         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields,
          sizeOfNullIndicatorArray);
 }
 
@@ -923,6 +900,7 @@ Record::Record(const vector<Attribute> &recordDesc,
 
   setNumberOfFields();
   setTombstoneIndicator();
+  setTombstoneIndicatorPtr();
   setFieldPointers();
   setInputData();
   setNullIndicatorArray();
@@ -1021,7 +999,11 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     //Check condition for each iteration
     //When hit found break loop
     //Extract attributes from record and return
-    rbfm->readRecord(fileHandle, recordDescriptor, rid, &data);
+    void *recordData;
+    rbfm->readRecord(fileHandle, recordDescriptor, rid, &recordData);
+
+    //Record record = new Record(recordDescriptor, (char *)recordData);
+    //record.getAttributeValue(conditionAttribute);
 
     r_slot fieldPointerIndex = 0;
     AttrType conditionAttributeType;
@@ -1035,7 +1017,15 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
       fieldPointerIndex++;
     }
 
+    r_slot numberOfFields = 0;
+    memcpy(&numberOfFields, (char *)recordData, sizeof(numberOfFields));
+    r_slot *fieldPointers = new r_slot[numberOfFields];
+    memcpy(&fieldPointers,
+           (char *)recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID),
+           sizeof(r_slot) * numberOfFields);
+
     r_slot fieldStartPointer = fieldPointers[fieldPointerIndex];
+
     string attributeValue = "";
     if (conditionAttributeType == TypeVarChar)
     {
@@ -1050,10 +1040,107 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     {
       memcpy(&attributeValue, (char *)recordData + fieldStartPointer, 4);
     }
+    if (CheckCondition(conditionAttributeType, attributeValue, value))
+      hitFound = true;
+    else
+    {
+      rid.slotNum++;
+      char *pageData = (char *)malloc(PAGE_SIZE);
+      fileHandle.readPage(rid.pageNum, pageData);
+      PageRecordInfo pri;
+      getPageRecordInfo(pri, pageData);
+      if (pri.numberOfSlots < rid.slotNum)
+      {
+        rid.pageNum++;
+        rid.slotNum = 0;
+      }
+    }
+  }
 
+  if (hitFound)
+  {
   }
 
   return 0;
+}
+
+bool CheckCondition(AttrType conditionAttributeType, string attributeValue, const void *value, CompOp compOp)
+{
+  if (conditionAttributeType == TypeVarChar)
+  {
+    //Only equality condition for strting?
+  }
+  else if (conditionAttributeType == TypeInt)
+  {
+    int attrValue = atoi(attributeValue.c_str());
+    int compValue = (int)value;
+    switch (compOp)
+    {
+    case EQ_OP:
+      if (attrValue == value)
+        return true;
+      break;
+    case LT_OP:
+      if (attrValue < value)
+        return true;
+      break;
+    case LE_OP:
+      if (attrValue <= value)
+        return true;
+      break;
+    case GT_OP:
+      if (attrValue > value)
+        return true;
+      break;
+    case GE_OP:
+      if (attrValue >= value)
+        return true;
+      break;
+    case NE_OP:
+      if (attrValue != value)
+        return true;
+      break;
+    case NO_OP:
+      return true;
+      break;
+    }
+  }
+  else if (conditionAttributeType == TypeReal)
+  {
+    float attrValue = strtof(attributeValue.c_str(), 0);
+    float compValue = (float)value;
+    switch (compOp)
+    {
+    case EQ_OP:
+      if (attrValue == value)
+        return true;
+      break;
+    case LT_OP:
+      if (attrValue < value)
+        return true;
+      break;
+    case LE_OP:
+      if (attrValue <= value)
+        return true;
+      break;
+    case GT_OP:
+      if (attrValue > value)
+        return true;
+      break;
+    case GE_OP:
+      if (attrValue >= value)
+        return true;
+      break;
+    case NE_OP:
+      if (attrValue != value)
+        return true;
+      break;
+    case NO_OP:
+      return true;
+      break;
+    }
+  }
+  return false;
 }
 
 RC RBFM_ScanIterator::close()
