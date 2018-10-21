@@ -38,8 +38,8 @@ bool isFieldNull(unsigned char *nullIndicatorArray, int fieldIndex)
   return isNull;
 }
 
-r_slot getLengthOfRecord(const void *data,
-                         const vector<Attribute> &recordDescriptor)
+r_slot getLengthOfRecordAndTransformRecord(const void *data,
+                                           const vector<Attribute> &recordDescriptor, char **record)
 {
   r_slot recordSizeInBytes = 0;
   r_slot numberOfFields = recordDescriptor.size();
@@ -107,6 +107,7 @@ r_slot getLengthOfRecord(const void *data,
       dataOffset = dataOffset + sizeof(int) + varStringLength;
     }
   }
+  *record = transformRawToRecordFormat(data, numberOfFields, isTombstone, fieldPointers, recordSizeInBytes);
   return recordSizeInBytes;
 }
 
@@ -290,6 +291,33 @@ RID getPageForRecordOfSize(FileHandle &fileHandle, r_slot sizeInBytes,
   //	}
 }
 
+char *transformRawToRecordFormat(const void *data, const r_slot numberOfFields, const char isTombstone, const r_slot *fieldPointers, const r_slot recordSizeInBytes)
+{
+  char *record = (char *)malloc(recordSizeInBytes);
+  // Copy no. of fields
+  int recordOffset = 0;
+  memcpy(record, &numberOfFields, sizeof(numberOfFields));
+  recordOffset += sizeof(numberOfFields);
+
+  // Copy tombstone indicator
+  memcpy(record + recordOffset, &isTombstone, sizeof(isTombstone));
+  recordOffset += sizeof(isTombstone);
+
+  //adding tombstone indicator pointer size to offset
+  recordOffset += sizeof(struct RID);
+
+  // Copy field pointers
+  memcpy(record + recordOffset, fieldPointers,
+         sizeof(fieldPointers[0]) * numberOfFields);
+  recordOffset = recordOffset + sizeof(fieldPointers[0]) * numberOfFields;
+
+  int rawDataSize = recordSizeInBytes - sizeof(r_slot) - sizeof(char) - sizeof(struct RID) - (numberOfFields * sizeof(fieldPointers[0]));
+
+  // Copy Null indicator array + data. Null indicator array already given in data
+  memcpy(record + recordOffset, data, rawDataSize);
+  return record;
+}
+
 RecordBasedFileManager *RecordBasedFileManager::_rbf_manager = 0;
 
 RecordBasedFileManager *RecordBasedFileManager::instance()
@@ -430,7 +458,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
   memcpy(record + recordOffset, &isTombstone, sizeof(isTombstone));
   recordOffset += sizeof(isTombstone);
 
-  //incrementing tombstone indicator pointer
+  //adding tombstone indicator pointer size to offset
   recordOffset += sizeof(struct RID);
 
   // Copy field pointers
@@ -666,14 +694,17 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
   r_slot freeSpaceAvailable = PAGE_SIZE - getRecordDirectorySize(pageRecordInfo) //slots + pageRecordInfo
                               - (pageRecordInfo.freeSpacePos);
 
+  //Transform raw Data into record format
+  char *record = NULL;
   // if length of new record data < length of old record data
-  r_slot newRecordLength = getLengthOfRecord(data, recordDescriptor);
+  r_slot newRecordLength = getLengthOfRecordAndTransformRecord(data, recordDescriptor, &record);
+
   short oldLength = slot.length;
   short lengthDiff = oldLength - newRecordLength;
   if (newRecordLength < slot.length)
   {
     // place record at offset of old record, slot.offset
-    memmove(pageData + slot.offset, data, newRecordLength);
+    memmove(pageData + slot.offset, record, newRecordLength);
 
     // update the length of old slot with new slot,
     slot.length = newRecordLength;
@@ -709,7 +740,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
       }
 
       // place record at offset of old record, slot.offset
-      memmove(pageData + slot.offset, data, newRecordLength);
+      memmove(pageData + slot.offset, record, newRecordLength);
 
       // update the length of old slot with new slot,
       slot.length = newRecordLength;
@@ -734,13 +765,15 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
   else if (newRecordLength == slot.length)
   {
     // place record at offset of old record, slot.offset
-    memmove(pageData + slot.offset, data, newRecordLength);
+    memmove(pageData + slot.offset, record, newRecordLength);
   }
 
   RC writeStatus = fileHandle.writePage(pageNum, pageData);
 
   free(pageData);
+  free(record);
   pageData = NULL;
+  record = NULL;
   return 0;
 }
 
@@ -914,3 +947,25 @@ bool Record::isFieldNull(r_slot fieldIndex)
   bool isNull = nullIndicatorArray[byteNumber] & (1 << (7 - fieldIndex % 8));
   return isNull;
 }
+
+////// ScanIterator
+
+RBFM_ScanIterator::RBFM_ScanIterator()
+{
+  isEOF = 0;
+}
+
+RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
+{
+  if (isEOF == RBFM_EOF)
+    return -1;
+
+  return 0;
+}
+
+RC RBFM_ScanIterator::close()
+{
+
+  return 0;
+}
+///////
