@@ -66,7 +66,16 @@ public:
   RBFM_ScanIterator(){};
   ~RBFM_ScanIterator(){};
 
-  //
+  //Adding Data members required for iteration
+  int isEOF;
+  RID nextRID;
+
+  FileHandle fileHandle;
+  vector<Attribute> recordDescriptor;
+  string &conditionAttribute;
+  CompOp compOp;
+  void *value;
+  vector<string> attributeNames;
 
   // Never keep the results in the memory. When getNextRecord() is called,
   // a satisfying record needs to be fetched from the file.
@@ -79,6 +88,9 @@ public:
   {
     return -1;
   };
+
+private:
+  RecordBasedFileManager *rbfm;
 };
 
 class RecordBasedFileManager
