@@ -759,7 +759,17 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
       insertRecord(fileHandle, recordDescriptor, data, &newRID);
       //Update the tombstone indicator pointer
       memmove(pageData + slot.offset + SLOT_SIZE + sizeof(char), &newRID, sizeof(struct RID));
-      //TODO: Confirm if you need to compact page here?
+
+      for (r_slot islot = rid.slotNum + 1; islot < pageRecordInfo.numberOfSlots;
+           islot++)
+      {
+        RID ridOfRecordToShift;
+        ridOfRecordToShift.pageNum = pageNum;
+        ridOfRecordToShift.slotNum = islot;
+
+        // shift record to left
+        shiftRecord(pageData, ridOfRecordToShift, -(oldLength - (sizeof(r_slot) + sizeof(char) + sizeof(struct RID))));
+      }
     }
   }
   else if (newRecordLength == slot.length)
