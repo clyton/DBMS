@@ -363,7 +363,7 @@ r_slot getRecordMetaDataSize(const vector<Attribute> &recordDescriptor)
   //
   //  | 2bytes #ofField | 1 byte Tombstone Indicator | 2 bytes per field|
 
-  r_slot returnLength = sizeof(r_slot) + sizeof(char) + sizeof(r_slot) * recordDescriptor.size();
+  r_slot returnLength = sizeof(r_slot) + sizeof(char) + sizeof(struct RID) + sizeof(r_slot) * recordDescriptor.size();
   // cout << "Size of Record meta Data of size " << recordDescriptor.size() << "is " << returnLength;
   return returnLength;
 }
@@ -793,6 +793,46 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const vector<Attribute> 
                                 const vector<string> &attributeNames,                  // a list of projected attributes
                                 RBFM_ScanIterator &rbfm_ScanIterator)
 {
+  rbfm_ScanIterator.fileHandle = fileHandle;
+  rbfm_ScanIterator.compOp = compOp;
+  rbfm_ScanIterator.attributeNames = attributeNames;
+  rbfm_ScanIterator.recordDescriptor = recordDescriptor;
+  rbfm_ScanIterator.conditionAttribute = conditionAttribute;
+  rbfm_ScanIterator.value = value;
+
+  // if (compOp != NO_OP)
+  // {
+  //   rbfm_ScanIterator.conditionAttribute = conditionAttribute;
+
+  //   AttrType type;
+  //   extractConditionAttributeType(type, recordDescriptor, conditionAttribute);
+  //   rbfm_ScanIterator.conditionAttributeType = type;
+
+  //   switch (type)
+  //   {
+
+  //   case TypeInt:
+  //     rbfm_ScanIterator.value = malloc(sizeof(int));
+  //     memcpy(rbfm_ScanIterator.value, value, sizeof(int));
+  //     break;
+
+  //   case TypeReal:
+  //     rbfm_ScanIterator.value = malloc(sizeof(float));
+  //     memcpy(rbfm_ScanIterator.value, value, sizeof(float));
+  //     break;
+
+  //   case TypeVarChar:
+  //     int length = 0;
+  //     memcpy(&length, value, sizeof(int));
+  //     rbfm_ScanIterator.value = malloc(sizeof(int) + length);
+  //     memcpy(rbfm_ScanIterator.value, value, sizeof(int) + length);
+  //     break;
+  //   }
+  // }
+
+  rbfm_ScanIterator.nextRID.pageNum = 0;
+  rbfm_ScanIterator.nextRID.slotNum = 0;
+  rbfm_ScanIterator.isEOF = 0;
 
   return 0;
 }
@@ -962,6 +1002,7 @@ bool Record::isFieldNull(r_slot fieldIndex)
 
 RBFM_ScanIterator::RBFM_ScanIterator()
 {
+  rbfm = RecordBasedFileManager::instance();
   isEOF = 0;
 }
 
@@ -969,6 +1010,19 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 {
   if (isEOF == RBFM_EOF)
     return -1;
+
+  rid = nextRID;
+  bool hitFound = false;
+
+  while (!hitFound)
+  {
+    //Iterate till hit found
+    //get record for each incremental RID
+    //Check condition for each iteration
+    //When hit found break loop
+    //Extract attributes from record and return
+    rbfm->readRecord(fileHandle, recordDescriptor, rid, &data);
+  }
 
   return 0;
 }
