@@ -1,4 +1,3 @@
-#include <ext/type_traits.h>
 #include <rbf/rbfm.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -6,6 +5,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <iostream>
 
 #define SLOT_SIZE sizeof(struct SlotDirectory)
 const RC success = 0;
@@ -29,6 +29,11 @@ struct PageRecordInfo {
  */
 const r_slot PAGE_RECORD_INFO_OFFSET = PAGE_SIZE
 		- sizeof(struct PageRecordInfo);
+
+void makeFieldNull(unsigned char * nullIndicatorArray, unsigned int fieldIndex) {
+	int byteNumber = fieldIndex / 8;
+	nullIndicatorArray[byteNumber] = nullIndicatorArray[byteNumber] | (1 << (7 - fieldIndex % 8));
+}
 
 bool isFieldNull(unsigned char * nullIndicatorArray, int fieldIndex) {
 	int byteNumber = fieldIndex / 8;
@@ -675,10 +680,8 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
 
 	Record record = Record(recordDescriptor, recordData);
 	string attributeValue = record.getAttributeValue(attributeName);
-	memcpy(data, &attributeValue, attributeValue.size());
+	memcpy(data, attributeValue.c_str(), attributeValue.size());
 
-	free(pageData);
-	free(recordData);
 	return success;
 }
 
@@ -693,13 +696,14 @@ void Record::setTombstoneIndicator() {
 
 void Record::setFieldPointers() {
 	fieldPointers = new r_slot[numberOfFields];
-	memcpy(&fieldPointers,
+	memcpy(fieldPointers,
 			recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator),
 			sizeof(r_slot) * numberOfFields);
 }
 
 void Record::setInputData() {
 	r_slot sizeOfInputData = getRawRecordSize();
+	inputData = (char*) malloc(sizeOfInputData);
 	memcpy(inputData,
 			recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator)
 					+ sizeof(r_slot) * numberOfFields, sizeOfInputData);
@@ -708,6 +712,7 @@ void Record::setInputData() {
 void Record::setNullIndicatorArray() {
 	r_slot sizeOfNullIndicatorArray = 0;
 	sizeOfNullIndicatorArray = ceil(numberOfFields / 8.0);
+	nullIndicatorArray = (unsigned char *)malloc(sizeOfNullIndicatorArray);
 
 	memcpy(nullIndicatorArray,
 			recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator)
@@ -761,10 +766,12 @@ r_slot Record::getRecordSize() {
 string Record::getAttributeValue(const string &attributeName) {
 	r_slot fieldPointerIndex = 0;
 	for (Attribute a : recordDescriptor) {
-		if (a.name.compare(attributeName)) {
+		if (a.name.compare(attributeName) == 0) {
 			break;
 		}
-		fieldPointerIndex++;
+		else{
+			fieldPointerIndex++;
+		}
 	}
 
 	return getAttributeValue(fieldPointerIndex);
@@ -775,18 +782,19 @@ string Record::getAttributeValue(r_slot fieldNumber) {
 		return NULL;
 	}
 	r_slot fieldStartPointer = fieldPointers[fieldNumber];
-	string attributeValue = "";
-	Attribute attributeMetaData;
+	char* attributeValue = NULL;
+	Attribute attributeMetaData = recordDescriptor[fieldNumber];
 	if (attributeMetaData.type == TypeVarChar) {
 		int lengthOfString = 0;
 		memcpy(&lengthOfString, recordData + fieldStartPointer,
 				sizeof(lengthOfString));
-		memcpy(&attributeValue,
+		attributeValue = (char*) malloc(lengthOfString);
+		memcpy(attributeValue,
 				recordData + fieldStartPointer + sizeof(lengthOfString),
 				lengthOfString);
 
 	} else {
-		memcpy(&attributeValue, recordData + fieldStartPointer, 4);
+		memcpy(attributeValue, recordData + fieldStartPointer, 4);
 	}
 	return attributeValue;
 
@@ -802,3 +810,150 @@ bool Record::isFieldNull(r_slot fieldIndex) {
 	bool isNull = nullIndicatorArray[byteNumber] & (1 << (7 - fieldIndex % 8));
 	return isNull;
 }
+
+RawRecordPreparer::RawRecordPreparer(
+		const vector<Attribute>& recordDescriptor) {
+	this->recordDescriptor = recordDescriptor;
+	nullIndicatorArraySize = ceil(recordDescriptor.size()/8.0);
+	nullIndicatorArray = new unsigned char[nullIndicatorArraySize];
+	memset(nullIndicatorArray, 0, nullIndicatorArraySize);
+	for(Attribute atr: recordDescriptor){
+		currentRecordSize += atr.length + nullIndicatorArraySize;
+	}
+	recordData = (char *)malloc(currentRecordSize);
+	recordDataOffset += nullIndicatorArraySize;
+}
+
+char* RawRecordPreparer::prepareRecord() {
+	if (fieldIndexCounter != recordDescriptor.size()){
+		cout << "Record - Schema mismatch. Missing fields. Exiting!" << endl;
+		exit(1);
+	}
+	memcpy(recordData, nullIndicatorArray, nullIndicatorArraySize);
+	// shrink the recordData size if not needed
+	if (recordDataOffset < currentRecordSize){
+		char* temp = (char *)realloc(recordData, recordDataOffset);
+		if (temp == NULL){
+			cout << "error reallocating recordData. Exiting";
+			exit(1);
+		}
+
+		recordData = temp;
+		currentRecordSize = recordDataOffset;
+	}
+	// check if all field values have been passed
+	return recordData;
+}
+
+RawRecordPreparer& RawRecordPreparer::setField(const string& value) {
+	Attribute attr = recordDescriptor[fieldIndexCounter];
+	if (attr.type != TypeVarChar){
+		cout << "Error in field setting : Expecting " << attr.type << " but got string";
+		exit(1);
+	}
+	else if (! isValidField()){
+		cout << "Field index out of bounds" << fieldIndexCounter << endl;
+	}
+	else{
+		resizeRecordDataIfNeeded(value.size() + 4);
+		int sizeOfString = value.size();
+		memcpy(recordData + recordDataOffset, &sizeOfString, sizeof(int));
+		recordDataOffset += sizeof(int);
+		memcpy(recordData + recordDataOffset, value.c_str(), value.size());
+		recordDataOffset += value.size();
+	}
+	fieldIndexCounter++;
+	return *this;
+}
+
+RawRecordPreparer& RawRecordPreparer::setField(int value) {
+	Attribute attr = recordDescriptor[fieldIndexCounter];
+	if (attr.type != TypeInt){
+		cout << "Error in field setting : Expecting " << attr.type << " but got 'int'";
+		exit(1);
+	}
+	else if (! isValidField()){
+		cout << "Field index out of bounds" << fieldIndexCounter << endl;
+	}
+	else{
+		resizeRecordDataIfNeeded(sizeof(value));
+		memcpy(recordData + recordDataOffset, &value, sizeof(value));
+		recordDataOffset += sizeof(value);
+	}
+	fieldIndexCounter++;
+	return *this;
+
+}
+
+RawRecordPreparer& RawRecordPreparer::setField(float value) {
+	Attribute attr = recordDescriptor[fieldIndexCounter];
+	if (attr.type != TypeReal){
+		cout << "Error in field setting : Expecting " << attr.type << " but got 'float'";
+		exit(1);
+	}
+	else if (! isValidField()){
+		cout << "Field index out of bounds" << fieldIndexCounter << endl;
+	}
+	else{
+		resizeRecordDataIfNeeded(sizeof(value));
+		memcpy(recordData + recordDataOffset, &value, sizeof(value));
+		recordDataOffset += sizeof(value);
+	}
+	fieldIndexCounter++;
+	return *this;
+
+}
+
+void RawRecordPreparer::resizeRecordDataIfNeeded(int size) {
+	if (size + recordDataOffset <= currentRecordSize){
+		return;
+	}
+	char *temp = (char *)realloc(recordData, currentRecordSize + size);
+	if (temp == NULL){
+		cout << "memory reallocation failed";
+		exit(1);
+	}
+	else{
+		recordData = temp;
+		currentRecordSize += size;
+	}
+}
+
+RawRecordPreparer& RawRecordPreparer::setNull() {
+
+	if (isValidField()){
+//		nullIndicatorArray[fieldIndexCounter]=1;
+		makeFieldNull(nullIndicatorArray, fieldIndexCounter);
+		fieldIndexCounter++;
+
+	}
+	else{
+		cout << "Field Index out of bounds" << fieldIndexCounter << endl;
+		cout << "Exiting";
+		exit(1);
+	}
+	return *this;
+}
+
+bool RawRecordPreparer::isValidField(){
+ if(fieldIndexCounter < recordDescriptor.size()){
+	 return true;
+ }
+ else{
+	 return false;
+ }
+}
+
+RawRecordPreparer& RawRecordPreparer::setRecordDescriptor(
+		const vector<Attribute>& recordDescriptor) {
+	this->recordDescriptor = recordDescriptor;
+	return *this;
+}
+
+RawRecordPreparer::~RawRecordPreparer() {
+	free(nullIndicatorArray);
+	free(recordData);
+	recordData = NULL;
+	nullIndicatorArray = NULL;
+}
+

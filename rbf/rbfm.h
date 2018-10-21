@@ -150,6 +150,18 @@ private:
 	PagedFileManager *pfm;
 };
 
+/**
+ * Interprets the record as stored in the heap file.
+ * The record format used to understand the fields is as follows:<br>
+ * <pre>
+ *  ------------------------------------------
+ *  | #F| TIA| F1PTR | F2PTR | NIA | F1 | F2 |
+ *  ------------------------------------------
+ *  </pre>
+ *  Where   TIA - Tombstone indicator
+ *  		#F  - No of fields
+ *
+ */
 class Record {
 
 private:
@@ -159,7 +171,7 @@ private:
 
 	r_slot numberOfFields = 0;
 	char tombstoneIndicator = 0;
-	r_slot *fieldPointers;
+	r_slot *fieldPointers = NULL;
 	char* inputData = NULL;
 	unsigned char* nullIndicatorArray = NULL;
 
@@ -197,6 +209,38 @@ public:
 
 	bool isFieldNull(r_slot fieldIndex);
 
+};
+
+/**
+ * Prepares the raw record given the fields.
+ * It prepares the record for insertion
+ * in the following format: <br>
+ * <pre>
+ * ------------------------------
+ * |Null Indicator Array| Fields|
+ * ------------------------------
+ * </pre>
+ */
+class RawRecordPreparer{
+private:
+	int recordDataOffset = 0;
+	unsigned int fieldIndexCounter = 0;
+	int currentRecordSize = 0;
+	char* recordData = NULL;
+	unsigned char* nullIndicatorArray = NULL;
+	int nullIndicatorArraySize = 0;
+	vector<Attribute> recordDescriptor;
+	void resizeRecordDataIfNeeded(int size);
+	bool isValidField();
+public:
+	RawRecordPreparer(const vector<Attribute> &recordDescriptor);
+	~RawRecordPreparer();
+	char* prepareRecord();
+	RawRecordPreparer& setField(const string& value);
+	RawRecordPreparer& setField(int value);
+	RawRecordPreparer& setField(float value);
+	RawRecordPreparer& setNull();
+	RawRecordPreparer& setRecordDescriptor(const vector<Attribute> &recordDescriptor);
 };
 
 #endif
