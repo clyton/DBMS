@@ -73,6 +73,18 @@ protected:
   RelationManager();
   ~RelationManager();
 
+private:
+  RecordBasedFileManager *rbfm;
+	const string columnCatalog = "Columns.tbl";
+	const string tableCatalog = "Tables.tbl";
+	int current_table_id=3;
+
+// Describe schema of Tables catalog table
+	vector<Attribute> tblRecordDescriptor;
+
+// Describe schema for Columns catalog table
+// Columns(table-id:int, column-name:varchar(50), column-type:int, column-length:int, column-position:int)
+	vector<Attribute> colRecordDescriptor;
 };
 
 #endif

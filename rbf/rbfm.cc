@@ -825,6 +825,7 @@ RawRecordPreparer::RawRecordPreparer(
 }
 
 char* RawRecordPreparer::prepareRecord() {
+	// check if all field values have been passed
 	if (fieldIndexCounter != recordDescriptor.size()){
 		cout << "Record - Schema mismatch. Missing fields. Exiting!" << endl;
 		exit(1);
@@ -841,14 +842,18 @@ char* RawRecordPreparer::prepareRecord() {
 		recordData = temp;
 		currentRecordSize = recordDataOffset;
 	}
-	// check if all field values have been passed
-	return recordData;
+	// set another pointer to recordData
+	char *returnRecordData = recordData;
+	// reset recordData and other variables so that next record can be prepared
+	resetCounters();
+
+	return returnRecordData;
 }
 
 RawRecordPreparer& RawRecordPreparer::setField(const string& value) {
 	Attribute attr = recordDescriptor[fieldIndexCounter];
 	if (attr.type != TypeVarChar){
-		cout << "Error in field setting : Expecting " << attr.type << " but got string";
+		cout << "Error in field setting : Expecting " << attr.name << " to be of type " << attr.type << " but got string";
 		exit(1);
 	}
 	else if (! isValidField()){
@@ -869,7 +874,7 @@ RawRecordPreparer& RawRecordPreparer::setField(const string& value) {
 RawRecordPreparer& RawRecordPreparer::setField(int value) {
 	Attribute attr = recordDescriptor[fieldIndexCounter];
 	if (attr.type != TypeInt){
-		cout << "Error in field setting : Expecting " << attr.type << " but got 'int'";
+		cout << "Error in field setting : Expecting " << attr.name << " to be of type "<< attr.type << " but got 'int'";
 		exit(1);
 	}
 	else if (! isValidField()){
@@ -888,7 +893,7 @@ RawRecordPreparer& RawRecordPreparer::setField(int value) {
 RawRecordPreparer& RawRecordPreparer::setField(float value) {
 	Attribute attr = recordDescriptor[fieldIndexCounter];
 	if (attr.type != TypeReal){
-		cout << "Error in field setting : Expecting " << attr.type << " but got 'float'";
+		cout << "Error in field setting : Expecting " << attr.name << " to be of type "<< attr.type << " but got 'float'";
 		exit(1);
 	}
 	else if (! isValidField()){
@@ -957,3 +962,22 @@ RawRecordPreparer::~RawRecordPreparer() {
 	nullIndicatorArray = NULL;
 }
 
+void RawRecordPreparer::resetCounters() {
+	// set all values to zero initially
+	recordDataOffset = 0;
+	fieldIndexCounter = 0;
+	currentRecordSize = 0;
+	recordData = NULL;
+	nullIndicatorArray = NULL;
+	nullIndicatorArraySize = 0;
+
+	// set it as the constructor initializes the values
+	nullIndicatorArraySize = ceil(recordDescriptor.size()/8.0);
+		nullIndicatorArray = new unsigned char[nullIndicatorArraySize];
+		memset(nullIndicatorArray, 0, nullIndicatorArraySize);
+		for(Attribute atr: recordDescriptor){
+			currentRecordSize += atr.length + nullIndicatorArraySize;
+		}
+	recordData = (char *)malloc(currentRecordSize);
+	recordDataOffset += nullIndicatorArraySize;
+}

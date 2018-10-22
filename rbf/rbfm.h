@@ -232,6 +232,7 @@ private:
 	vector<Attribute> recordDescriptor;
 	void resizeRecordDataIfNeeded(int size);
 	bool isValidField();
+	void resetCounters();
 public:
 	RawRecordPreparer(const vector<Attribute> &recordDescriptor);
 	~RawRecordPreparer();

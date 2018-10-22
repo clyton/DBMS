@@ -1,6 +1,14 @@
 
 #include "rm.h"
 
+#include "../rbf/pfm.h"
+
+RC success = 0;
+enum TableType{
+	SYSTEM_TABLE,
+	USER_TABLE
+};
+
 RelationManager* RelationManager::instance()
 {
     static RelationManager _rm;
@@ -9,6 +17,20 @@ RelationManager* RelationManager::instance()
 
 RelationManager::RelationManager()
 {
+	rbfm = RecordBasedFileManager::instance();
+
+	tblRecordDescriptor.push_back({"table-type", TypeInt, 4});
+	tblRecordDescriptor.push_back({"table-id", TypeInt, 4});
+	tblRecordDescriptor.push_back({"table-name", TypeVarChar, 50});
+	tblRecordDescriptor.push_back({"file-name", TypeVarChar, 50});
+
+// Describe schema for Columns catalog table
+// Columns(table-id:int, column-name:varchar(50), column-type:int, column-length:int, column-position:int)
+	colRecordDescriptor.push_back({"table-id", TypeInt, 4});
+	colRecordDescriptor.push_back({"column-name", TypeVarChar, 50});
+	colRecordDescriptor.push_back({"column-type", TypeInt, 4});
+	colRecordDescriptor.push_back({"column-length", TypeInt, 4});
+	colRecordDescriptor.push_back({"column-position", TypeInt, 4});
 }
 
 RelationManager::~RelationManager()
@@ -17,17 +39,184 @@ RelationManager::~RelationManager()
 
 RC RelationManager::createCatalog()
 {
-    return -1;
+	FileHandle fileHandle;
+	rbfm->createFile(tableCatalog);
+	rbfm->openFile(tableCatalog, fileHandle);
+
+
+//  Prepare raw table record for insertion
+//	Tables (table-id:int, table-name:varchar(50), file-name:varchar(50))
+	RawRecordPreparer tblCtlgPrp = RawRecordPreparer(tblRecordDescriptor);
+	char* tableCatalogRecord = tblCtlgPrp
+			.setField(SYSTEM_TABLE) 				  //table-type
+			.setField(1)                              //table-id
+			.setField("Tables")                       //table-name
+			.setField(tableCatalog)                   //file-name
+			.prepareRecord();
+
+// insert first tableCatalog record for 'Tables' table
+	RID rid;
+	rbfm->insertRecord(fileHandle, tblRecordDescriptor, tableCatalogRecord, rid);
+//  Prepare raw table record for insertion
+//	Tables (table-id:int, table-name:varchar(50), file-name:varchar(50))
+	char* tableCatalogRecord2 = tblCtlgPrp
+			.setField(SYSTEM_TABLE) 				  //table-type
+			.setField(2)                              //table-id
+			.setField("Columns")                       //table-name
+			.setField(columnCatalog)                   //file-name
+			.prepareRecord();
+
+// insert second tableCatalog record for 'Tables' table
+	RID rid2;
+	rbfm->insertRecord(fileHandle, tblRecordDescriptor, tableCatalogRecord2, rid2);
+	rbfm->closeFile(fileHandle);
+
+// Open file for columns table
+	FileHandle fileHandleForCols;
+	rbfm->createFile(columnCatalog);
+	rbfm->openFile(columnCatalog, fileHandleForCols);
+
+
+//  Prepare raw table record for insertion
+//	 (1 , "table-id"        , TypeInt     , 4  , 1)
+//	 (1 , "table-name"      , TypeVarChar , 50 , 2)
+//	 (1 , "file-name"       , TypeVarChar , 50 , 3)
+//	 (2 , "table-id"        , TypeInt     , 4  , 1)
+//	 (2 , "column-name"     , TypeVarChar , 50 , 2)
+//	 (2 , "column-type"     , TypeInt     , 4  , 3)
+//	 (2 , "column-length"   , TypeInt     , 4  , 4)
+//	 (2 , "column-position" , TypeInt     , 4  , 5)
+
+//	 (1 , "table-id"        , TypeInt     , 4  , 1)
+	RawRecordPreparer colCtlgPrp = RawRecordPreparer(colRecordDescriptor);
+	char* columnCatalogRecord = colCtlgPrp
+			.setField(1) 			 // table-id
+			.setField("table-id")    // column-name
+			.setField(TypeInt)     // column-type
+			.setField(4)             // column-length
+			.setField(1)             // column-position
+			.prepareRecord();
+	rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
+
+//	 (1 , "table-name"      , TypeVarChar , 50 , 2)
+	columnCatalogRecord = colCtlgPrp
+			.setField(1) 			 // table-id
+			.setField("table-name")    // column-name
+			.setField(TypeVarChar)     // column-type
+			.setField(50)             // column-length
+			.setField(2)             // column-position
+			.prepareRecord();
+	rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
+
+//	 (1 , "file-name"       , TypeVarChar , 50 , 3)
+	columnCatalogRecord = colCtlgPrp
+			.setField(1) 			 // table-id
+			.setField("file-name")    // column-name
+			.setField(TypeVarChar)     // column-type
+			.setField(50)             // column-length
+			.setField(3)             // column-position
+			.prepareRecord();
+	rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
+
+
+//	 (2 , "table-id"        , TypeInt     , 4  , 1)
+	columnCatalogRecord = colCtlgPrp
+			.setField(2) 			 // table-id
+			.setField("table-id")    // column-name
+			.setField(TypeInt)     // column-type
+			.setField(4)             // column-length
+			.setField(1)             // column-position
+			.prepareRecord();
+	rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
+
+//	 (2 , "column-name"     , TypeVarChar , 50 , 2)
+	columnCatalogRecord = colCtlgPrp
+			.setField(2) 			 // table-id
+			.setField("column-name")    // column-name
+			.setField(TypeVarChar)     // column-type
+			.setField(50)             // column-length
+			.setField(2)             // column-position
+			.prepareRecord();
+	rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
+
+//	 (2 , "column-type"     , TypeInt     , 4  , 3)
+	columnCatalogRecord = colCtlgPrp
+			.setField(2) 			 // table-id
+			.setField("column-type")    // column-name
+			.setField(TypeInt)     // column-type
+			.setField(4)             // column-length
+			.setField(3)             // column-position
+			.prepareRecord();
+	rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
+
+//	 (2 , "column-length"   , TypeInt     , 4  , 4)
+	columnCatalogRecord = colCtlgPrp
+			.setField(2) 			 // table-id
+			.setField("column-length")    // column-name
+			.setField(TypeInt)     // column-type
+			.setField(4)             // column-length
+			.setField(4)             // column-position
+			.prepareRecord();
+	rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
+
+//	 (2 , "column-position" , TypeInt     , 4  , 5)
+	columnCatalogRecord = colCtlgPrp
+			.setField(2) 			 // table-id
+			.setField("column-position")    // column-name
+			.setField(TypeInt)     // column-type
+			.setField(4)             // column-length
+			.setField(5)             // column-position
+			.prepareRecord();
+	rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
+	rbfm->closeFile(fileHandleForCols);
+    return success;
 }
 
 RC RelationManager::deleteCatalog()
 {
-    return -1;
+	rbfm->destroyFile(tableCatalog);
+	rbfm->destroyFile(columnCatalog);
+	return success;
 }
 
 RC RelationManager::createTable(const string &tableName, const vector<Attribute> &attrs)
 {
-    return -1;
+	const string fileName = tableName + ".tbl";
+	FileHandle fileHandle;
+	rbfm->createFile(fileName);
+
+	// insert tuple in table catalog
+	rbfm->openFile(tableCatalog, fileHandle);
+	RawRecordPreparer tblRecordPrp = RawRecordPreparer(tblRecordDescriptor);
+	RID rid;
+	char* tableCatalogRecord = tblRecordPrp.setField(SYSTEM_TABLE)
+			.setField(current_table_id)
+			.setField(tableName)
+			.setField(fileName)
+			.prepareRecord();
+	rbfm->insertRecord(fileHandle, tblRecordDescriptor, tableCatalogRecord, rid);
+	rbfm->closeFile(fileHandle);
+
+	// insert tuples in column catalog
+	rbfm->openFile(columnCatalog, fileHandle);
+	RawRecordPreparer colRecordPrp = RawRecordPreparer(colRecordDescriptor);
+	char* colCatalogRecord;
+	int colPosition=1;
+	for (Attribute attr: attrs){
+		colCatalogRecord = colRecordPrp
+				.setField(current_table_id)
+				.setField(attr.name)
+				.setField(attr.type)
+				.setField((int)attr.length)
+				.setField(colPosition++)
+				.prepareRecord();
+		rbfm->insertRecord(fileHandle, colRecordDescriptor, colCatalogRecord, rid);
+
+	}
+
+	current_table_id++;
+
+    return success;
 }
 
 RC RelationManager::deleteTable(const string &tableName)
