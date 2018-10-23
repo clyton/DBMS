@@ -1024,8 +1024,12 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
            (char *)recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID),
            sizeof(r_slot) * numberOfFields);
 
-    r_slot fieldStartPointer = fieldPointers[fieldPointerIndex];
+    int nullFieldsIndicatorLength = ceil(numberOfFields / 8.0);
+    unsigned char *nullIndicatorArray = (unsigned char *)malloc(nullFieldsIndicatorLength);
+    memcpy(nullIndicatorArray, (char *)recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID) + (numberOfFields * sizeof(fieldPointers[0])),
+           nullFieldsIndicatorLength);
 
+    r_slot fieldStartPointer = fieldPointers[fieldPointerIndex];
     string attributeValue = "";
     if (conditionAttributeType == TypeVarChar)
     {
@@ -1059,6 +1063,37 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 
   if (hitFound)
   {
+    short attrNumberOfFields = attributeNames.size();
+    int attrNullFieldsIndicatorLength = ceil(attrNumberOfFields / 8.0);
+    unsigned char *attrNullIndicatorArray = (unsigned char *)malloc(attrNullFieldsIndicatorLength);
+
+    r_slot attrFieldPointerIndex = 0;
+    int attrOffset = attrNullFieldsIndicatorLength;
+    for (Attribute a : recordDescriptor)
+    {
+      for (string s : attributeNames)
+      {
+        if (a.name.compare(s))
+        {
+          short attrNullIndicatorByte = (attrFieldPointerIndex + 1 / 8);
+          memcpy(attrNullIndicatorArray + attrFieldPointerIndex, nullIndicatorArray[attrNullIndicatorByte] & (1 << (7 - attrFieldPointerIndex + (8 * attrNullIndicatorByte))), 1);
+          if (a.type == TypeVarChar)
+          {
+            int varcharLength = 0;
+            memcpy(&varcharLength, (char *)recordData + fieldPointers[attrFieldPointerIndex], 4);
+            memcpy((char *)data + attrOffset, (char *)recordData + fieldPointers[attrFieldPointerIndex], 4 + varcharLength);
+            attrOffset += (4 + varcharLength);
+          }
+          else
+          {
+            memcpy((char *)data + attrOffset, (char *)recordData + fieldPointers[attrFieldPointerIndex], 4);
+            attrOffset += 4;
+          }
+        }
+        attrFieldPointerIndex++;
+      }
+    }
+    memcpy((char *)data, attrNullIndicatorArray, attrNullFieldsIndicatorLength);
   }
 
   return 0;
