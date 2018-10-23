@@ -63,7 +63,7 @@ typedef enum
 class RBFM_ScanIterator
 {
 public:
-  RBFM_ScanIterator(){};
+  RBFM_ScanIterator();
   ~RBFM_ScanIterator(){};
 
   //Adding Data members required for iteration
@@ -72,25 +72,17 @@ public:
 
   FileHandle fileHandle;
   vector<Attribute> recordDescriptor;
-  string &conditionAttribute;
+  string conditionAttribute;
   CompOp compOp;
-  void *value;
+  const void *value;
   vector<string> attributeNames;
 
   // Never keep the results in the memory. When getNextRecord() is called,
   // a satisfying record needs to be fetched from the file.
   // "data" follows the same format as RecordBasedFileManager::insertRecord().
-  RC getNextRecord(RID &rid, void *data)
-  {
-    return RBFM_EOF;
-  };
-  RC close()
-  {
-    return -1;
-  };
+  RC getNextRecord(RID &rid, void *data);
+  RC close();
 
-private:
-  RecordBasedFileManager *rbfm;
 };
 
 class RecordBasedFileManager
