@@ -1065,7 +1065,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
   {
     short attrNumberOfFields = attributeNames.size();
     int attrNullFieldsIndicatorLength = ceil(attrNumberOfFields / 8.0);
-    unsigned char *attrNullIndicatorArray = (unsigned char *)malloc(attrNullFieldsIndicatorLength);
+    //unsigned char *attrNullIndicatorArray = (unsigned char *)malloc(attrNullFieldsIndicatorLength);
 
     r_slot attrFieldPointerIndex = 0;
     int attrOffset = attrNullFieldsIndicatorLength;
@@ -1076,7 +1076,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
         if (a.name.compare(s))
         {
           short attrNullIndicatorByte = (attrFieldPointerIndex + 1 / 8);
-          memcpy(attrNullIndicatorArray + attrFieldPointerIndex, nullIndicatorArray[attrNullIndicatorByte] & (1 << (7 - attrFieldPointerIndex + (8 * attrNullIndicatorByte))), 1);
+          memcpy((char *)data, nullIndicatorArray[attrNullIndicatorByte] & (1 << (7 - attrFieldPointerIndex + (8 * attrNullIndicatorByte))), 1);
           if (a.type == TypeVarChar)
           {
             int varcharLength = 0;
@@ -1093,7 +1093,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
         attrFieldPointerIndex++;
       }
     }
-    memcpy((char *)data, attrNullIndicatorArray, attrNullFieldsIndicatorLength);
+    //memcpy((char *)data, attrNullIndicatorArray, attrNullFieldsIndicatorLength);
   }
 
   return 0;
@@ -1103,7 +1103,35 @@ bool CheckCondition(AttrType conditionAttributeType, string attributeValue, cons
 {
   if (conditionAttributeType == TypeVarChar)
   {
-    //Only equality condition for strting?
+    switch (compOp)
+    {
+    case EQ_OP:
+      if (strcmp(attributeValue, (char *)value) == 0)
+        return true;
+      break;
+    case LT_OP:
+      if (strcmp(attributeValue, (char *)value) < 0)
+        return true;
+      break;
+    case LE_OP:
+      if (strcmp(attributeValue, (char *)value) <= 0)
+        return true;
+      break;
+    case GT_OP:
+      if (strcmp(attributeValue, (char *)value) > 0)
+        return true;
+      break;
+    case GE_OP:
+      if (strcmp(attributeValue, (char *)value) >= 0)
+        return true;
+      break;
+    case NE_OP:
+      if (strcmp(attributeValue, (char *)value) != 0)
+        return true;
+      break;
+    case NO_OP:
+      return true;
+    }
   }
   else if (conditionAttributeType == TypeInt)
   {
