@@ -20,6 +20,12 @@
 
 using namespace std;
 
+bool isFieldNullTest(unsigned char * nullIndicatorArray, int fieldIndex) {
+	int byteNumber = fieldIndex / 8;
+	bool isNull = nullIndicatorArray[byteNumber] & (1 << (7 - fieldIndex % 8));
+	return isNull;
+}
+
 int UnitTest(RecordBasedFileManager *rbfm) {
     // Functions tested
     // 1. Create Record-Based File
@@ -96,7 +102,9 @@ int UnitTest(RecordBasedFileManager *rbfm) {
     rc = rbfm-> readAttribute(fileHandle, recordDescriptor, rid, "EmpName", attributeData);
     assert(rc == success && "reading attribute should not fail");
 
-    assert(strcmp(attributeData, "Anteater") == 0 && "Anteater attribute should be same");
+    unsigned char nullIndicatorArray = attributeData[0];
+    if (!isFieldNullTest(&nullIndicatorArray, 0))
+		assert(strcmp(attributeData + 1, "Anteater") == 0 && "Anteater attribute should be same");
 
     // Close the file "test8"
     rc = rbfm->closeFile(fileHandle);

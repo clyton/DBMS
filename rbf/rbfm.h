@@ -201,9 +201,9 @@ public:
 
 	r_slot getRecordSize();
 
-	string getAttributeValue(const string &attributeName);
+	char* getAttributeValue(const string &attributeName);
 
-	string getAttributeValue(r_slot fieldNumber);
+	char* getAttributeValue(r_slot fieldNumber);
 
 	bool isTombstone();
 

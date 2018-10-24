@@ -145,7 +145,6 @@ RC PagedFileManager::closeFile(FileHandle &fileHandle) {
 	} else {
 		return -1;
 	}
-	delete file;
 	fileHandle.setFile(NULL);
 }
 

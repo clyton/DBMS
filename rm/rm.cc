@@ -198,7 +198,8 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
 	rbfm->closeFile(fileHandle);
 
 	// insert tuples in column catalog
-	rbfm->openFile(columnCatalog, fileHandle);
+	FileHandle colFileHandle;
+	rbfm->openFile(columnCatalog, colFileHandle);
 	RawRecordPreparer colRecordPrp = RawRecordPreparer(colRecordDescriptor);
 	char* colCatalogRecord;
 	int colPosition=1;
@@ -210,7 +211,7 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
 				.setField((int)attr.length)
 				.setField(colPosition++)
 				.prepareRecord();
-		rbfm->insertRecord(fileHandle, colRecordDescriptor, colCatalogRecord, rid);
+		rbfm->insertRecord(colFileHandle, colRecordDescriptor, colCatalogRecord, rid);
 
 	}
 

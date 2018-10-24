@@ -679,8 +679,16 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
 	memcpy(recordData, pageData + recordSlot.offset, recordSlot.length);
 
 	Record record = Record(recordDescriptor, recordData);
-	string attributeValue = record.getAttributeValue(attributeName);
-	memcpy(data, attributeValue.c_str(), attributeValue.size());
+	char* attributeValue = record.getAttributeValue(attributeName);
+
+	// Add a one byte null indicator array always for read record
+	unsigned char *nullIndicatorArray=(unsigned char*) malloc(1);
+	memset(nullIndicatorArray,0, 1);
+	if (attributeValue == NULL){
+		makeFieldNull(nullIndicatorArray, 0);
+	}
+	memcpy(data, nullIndicatorArray, 1);
+	memcpy((char*)data + 1, attributeValue, strlen(attributeValue));
 
 	return success;
 }
@@ -763,7 +771,7 @@ r_slot Record::getRecordSize() {
 	return getRawRecordSize() + getRecordMetaDataSize(recordDescriptor);
 }
 
-string Record::getAttributeValue(const string &attributeName) {
+char* Record::getAttributeValue(const string &attributeName) {
 	r_slot fieldPointerIndex = 0;
 	for (Attribute a : recordDescriptor) {
 		if (a.name.compare(attributeName) == 0) {
@@ -777,7 +785,7 @@ string Record::getAttributeValue(const string &attributeName) {
 	return getAttributeValue(fieldPointerIndex);
 }
 
-string Record::getAttributeValue(r_slot fieldNumber) {
+char* Record::getAttributeValue(r_slot fieldNumber) {
 	if (isFieldNull(fieldNumber)) {
 		return NULL;
 	}
