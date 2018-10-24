@@ -796,7 +796,7 @@ RC RecordBasedFileManager::scan(FileHandle &fileHandle, const vector<Attribute> 
                                 const vector<string> &attributeNames,                  // a list of projected attributes
                                 RBFM_ScanIterator &rbfm_ScanIterator)
 {
-  rbfm_ScanIterator.fileHandle = fileHandle;
+  rbfm_ScanIterator.fileHandle = &fileHandle;
   rbfm_ScanIterator.compOp = compOp;
   rbfm_ScanIterator.attributeNames = attributeNames;
   rbfm_ScanIterator.recordDescriptor = recordDescriptor;
@@ -1112,7 +1112,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     //Check condition for each iteration
     //When hit found break loop
     //Extract attributes from record and return
-    rbfm->readRecord(fileHandle, recordDescriptor, rid, &recordData);
+    rbfm->readRecord(*fileHandle, recordDescriptor, rid, &recordData);
 
     //Record record = new Record(recordDescriptor, (char *)recordData);
     //record.getAttributeValue(conditionAttribute);
@@ -1162,7 +1162,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     {
       rid.slotNum++;
       char *pageData = (char *)malloc(PAGE_SIZE);
-      fileHandle.readPage(rid.pageNum, pageData);
+      fileHandle->readPage(rid.pageNum, pageData);
       PageRecordInfo pri;
       getPageRecordInfo(pri, pageData);
       if (pri.numberOfSlots < rid.slotNum)

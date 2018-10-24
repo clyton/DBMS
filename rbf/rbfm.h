@@ -70,7 +70,7 @@ public:
   int isEOF;
   RID nextRID;
 
-  FileHandle fileHandle;
+  FileHandle *fileHandle;
   vector<Attribute> recordDescriptor;
   string conditionAttribute;
   CompOp compOp;
