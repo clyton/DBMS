@@ -19,18 +19,18 @@ RelationManager::RelationManager()
 {
 	rbfm = RecordBasedFileManager::instance();
 
-	tblRecordDescriptor.push_back({"table-type", TypeInt, 4});
-	tblRecordDescriptor.push_back({"table-id", TypeInt, 4});
-	tblRecordDescriptor.push_back({"table-name", TypeVarChar, 50});
-	tblRecordDescriptor.push_back({"file-name", TypeVarChar, 50});
+	tblRecordDescriptor.push_back((Attribute) {"table-type", TypeInt, 4} );
+	tblRecordDescriptor.push_back((Attribute){"table-id", TypeInt, 4});
+	tblRecordDescriptor.push_back((Attribute){"table-name", TypeVarChar, 50});
+	tblRecordDescriptor.push_back((Attribute){"file-name", TypeVarChar, 50});
 
 // Describe schema for Columns catalog table
 // Columns(table-id:int, column-name:varchar(50), column-type:int, column-length:int, column-position:int)
-	colRecordDescriptor.push_back({"table-id", TypeInt, 4});
-	colRecordDescriptor.push_back({"column-name", TypeVarChar, 50});
-	colRecordDescriptor.push_back({"column-type", TypeInt, 4});
-	colRecordDescriptor.push_back({"column-length", TypeInt, 4});
-	colRecordDescriptor.push_back({"column-position", TypeInt, 4});
+	colRecordDescriptor.push_back((Attribute){"table-id", TypeInt, 4});
+	colRecordDescriptor.push_back((Attribute){"column-name", TypeVarChar, 50});
+	colRecordDescriptor.push_back((Attribute){"column-type", TypeInt, 4});
+	colRecordDescriptor.push_back((Attribute){"column-length", TypeInt, 4});
+	colRecordDescriptor.push_back((Attribute){"column-position", TypeInt, 4});
 }
 
 RelationManager::~RelationManager()
