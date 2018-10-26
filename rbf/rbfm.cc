@@ -901,7 +901,7 @@ void Record::setFieldPointers()
 {
   fieldPointers = new r_slot[numberOfFields];
   memcpy(fieldPointers,
-         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator),
+         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID),
          sizeof(r_slot) * numberOfFields);
 }
 
@@ -910,7 +910,7 @@ void Record::setInputData()
   r_slot sizeOfInputData = getRawRecordSize();
   inputData = (char *)malloc(sizeOfInputData);
   memcpy(inputData,
-         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(r_slot) * numberOfFields, sizeOfInputData);
+         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) +  sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields, sizeOfInputData);
 }
 
 void Record::setNullIndicatorArray()
