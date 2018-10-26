@@ -1038,6 +1038,7 @@ AttrType Record::getAttributeType(const string &attributeName)
       return a.type;
     }
   }
+  return TypeInt;//TODO: Cerr
 }
 
 bool Record::isFieldNull(r_slot fieldIndex)
@@ -1056,6 +1057,9 @@ RBFM_ScanIterator::RBFM_ScanIterator()
   conditionAttribute = "";
   nextRID.pageNum = 0;
   nextRID.slotNum = 0;
+  value = NULL;
+  compOp = NO_OP;
+  fileHandle = NULL;
 }
 
 bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const void *value, CompOp compOp)
@@ -1208,15 +1212,14 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 
   rid = nextRID;
   bool hitFound = false;
-  RecordBasedFileManager *rbfm = RecordBasedFileManager::instance();
-  void *recordData;
+  void *recordData = (char *)malloc(PAGE_SIZE);
 
   while (!hitFound)
   {
     char *pageData = (char *)malloc(PAGE_SIZE);
     fileHandle->readPage(rid.pageNum, pageData);
     SlotDirectory slot;
-    getSlotForRID(pageData, nextRID, slot);
+    getSlotForRID(pageData, rid, slot);
 
     memcpy(recordData, pageData + slot.offset, slot.length);
     Record record = Record(recordDescriptor, (char *)recordData);
@@ -1236,10 +1239,22 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
       getPageRecordInfo(pri, pageData);
       if (pri.numberOfSlots < rid.slotNum)
       {
-        rid.pageNum++;
-        rid.slotNum = 0;
+        unsigned numberOfPages = fileHandle->getNumberOfPages();
+        if (rid.pageNum >= numberOfPages - 1)
+        {
+          isEOF = RBFM_EOF;
+          nextRID.pageNum = rid.pageNum;
+          nextRID.slotNum = rid.slotNum;
+          return 0;
+        }
+        else
+        {
+          rid.pageNum++;
+          rid.slotNum = 0;
+        }
       }
     }
+    free(pageData);
   }
 
   if (hitFound)
@@ -1289,6 +1304,9 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     memcpy((char *)data, attrNullIndicatorArray, attrNullFieldsIndicatorLength);
   }
 
+  nextRID.pageNum = rid.pageNum;
+  nextRID.slotNum = rid.slotNum + 1;
+  free(recordData);
   return 0;
 }
 
