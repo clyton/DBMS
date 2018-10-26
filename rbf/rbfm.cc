@@ -880,7 +880,7 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
   //   memcpy((char *)data + valueOffset, &attributeLength, 4);
   //   valueOffset += 4;
   // }
-  memcpy((char *)data, attributeValue + 1, strlen(attributeValue) - 1);
+  memcpy((char *)data + 1, attributeValue, strlen(attributeValue));
 
   free(pageData);
   free(recordData);
