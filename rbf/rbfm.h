@@ -216,6 +216,9 @@ public:
   char *getAttributeValue(const string &attributeName);
 
   char *getAttributeValue(r_slot fieldNumber);
+
+  AttrType getAttributeType(const string &attributeName);
+
   r_slot getRecordSize();
 
   bool isTombstone();
