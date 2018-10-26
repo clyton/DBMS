@@ -39,35 +39,35 @@ bool isFieldNull(unsigned char *nullIndicatorArray, int fieldIndex)
   return isNull;
 }
 
-char *transformRawToRecordFormat(const void *data, const r_slot numberOfFields, const char isTombstone, const r_slot *fieldPointers, const r_slot recordSizeInBytes)
-{
-  char *record = (char *)malloc(recordSizeInBytes);
-  // Copy no. of fields
-  int recordOffset = 0;
-  memcpy(record, &numberOfFields, sizeof(numberOfFields));
-  recordOffset += sizeof(numberOfFields);
+// char *transformRawToRecordFormat(const void *data, const r_slot numberOfFields, const char isTombstone, const r_slot *fieldPointers, const r_slot recordSizeInBytes)
+// {
+//   char *record = (char *)malloc(recordSizeInBytes);
+//   // Copy no. of fields
+//   int recordOffset = 0;
+//   memcpy(record, &numberOfFields, sizeof(numberOfFields));
+//   recordOffset += sizeof(numberOfFields);
 
-  // Copy tombstone indicator
-  memcpy(record + recordOffset, &isTombstone, sizeof(isTombstone));
-  recordOffset += sizeof(isTombstone);
+//   // Copy tombstone indicator
+//   memcpy(record + recordOffset, &isTombstone, sizeof(isTombstone));
+//   recordOffset += sizeof(isTombstone);
 
-  //adding tombstone indicator pointer size to offset
-  recordOffset += sizeof(RID);
+//   //adding tombstone indicator pointer size to offset
+//   recordOffset += sizeof(RID);
 
-  // Copy field pointers
-  memcpy(record + recordOffset, fieldPointers,
-         sizeof(fieldPointers[0]) * numberOfFields);
-  recordOffset = recordOffset + sizeof(fieldPointers[0]) * numberOfFields;
+//   // Copy field pointers
+//   memcpy(record + recordOffset, fieldPointers,
+//          sizeof(fieldPointers[0]) * numberOfFields);
+//   recordOffset = recordOffset + sizeof(fieldPointers[0]) * numberOfFields;
 
-  int rawDataSize = recordSizeInBytes - sizeof(r_slot) - sizeof(char) - sizeof(RID) - (numberOfFields * sizeof(fieldPointers[0]));
+//   int rawDataSize = recordSizeInBytes - sizeof(r_slot) - sizeof(char) - sizeof(RID) - (numberOfFields * sizeof(fieldPointers[0]));
 
-  // Copy Null indicator array + data. Null indicator array already given in data
-  memcpy(record + recordOffset, data, rawDataSize);
-  return record;
-}
+//   // Copy Null indicator array + data. Null indicator array already given in data
+//   memcpy(record + recordOffset, data, rawDataSize);
+//   return record;
+// }
 
 r_slot getLengthOfRecordAndTransformRecord(const void *data,
-                                           const vector<Attribute> &recordDescriptor, char **record)
+                                           const vector<Attribute> &recordDescriptor, char *record)
 {
   r_slot recordSizeInBytes = 0;
   r_slot numberOfFields = recordDescriptor.size();
@@ -135,7 +135,31 @@ r_slot getLengthOfRecordAndTransformRecord(const void *data,
       dataOffset = dataOffset + sizeof(int) + varStringLength;
     }
   }
-  *record = transformRawToRecordFormat(data, numberOfFields, isTombstone, fieldPointers, recordSizeInBytes);
+  //*record = transformRawToRecordFormat(data, numberOfFields, isTombstone, fieldPointers, recordSizeInBytes);
+  //*record = (char *)malloc(recordSizeInBytes);
+
+  // Copy no. of fields
+  int recordOffset = 0;
+  memcpy(record, &numberOfFields, sizeof(numberOfFields));
+  recordOffset += sizeof(numberOfFields);
+
+  // Copy tombstone indicator
+  memcpy(record + recordOffset, &isTombstone, sizeof(isTombstone));
+  recordOffset += sizeof(isTombstone);
+
+  //adding tombstone indicator pointer size to offset
+  recordOffset += sizeof(RID);
+
+  // Copy field pointers
+  memcpy(record + recordOffset, fieldPointers,
+         sizeof(fieldPointers[0]) * numberOfFields);
+  recordOffset = recordOffset + sizeof(fieldPointers[0]) * numberOfFields;
+
+  int rawDataSize = recordSizeInBytes - sizeof(r_slot) - sizeof(char) - sizeof(RID) - (numberOfFields * sizeof(fieldPointers[0]));
+
+  // Copy Null indicator array + data. Null indicator array already given in data
+  memcpy(record + recordOffset, data, rawDataSize);
+
   return recordSizeInBytes;
 }
 
@@ -318,8 +342,6 @@ RID getPageForRecordOfSize(FileHandle &fileHandle, r_slot sizeInBytes,
 
   //	}
 }
-
-
 
 RecordBasedFileManager *RecordBasedFileManager::_rbf_manager = 0;
 
@@ -565,6 +587,15 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
   // cout << "For slot " << rid.slotNum << " : Slot offset from file is "<<  slot.offset << ". And slot length is " << slot.length << endl;
   PageRecordInfo pri;
   getPageRecordInfo(pri, (char *)pageData);
+
+  char isTombstone;
+  memcpy(&isTombstone, pageData + slot.offset + 4, 1);
+  if (isTombstone == 1)
+  {
+    RID newRID;
+    memcpy(&newRID, pageData + slot.offset + 5, sizeof(newRID));
+    return readRecord(fileHandle, recordDescriptor, newRID, data);
+  }
   // cout << "Record Directory : Number of records : " << pri.numberOfRecords <<". Free Space : " << pri.freeSpacePos << endl;
   r_slot recordMetaDataLength = getRecordMetaDataSize(recordDescriptor);
   memcpy(data, pageData + slot.offset + recordMetaDataLength,
@@ -698,9 +729,9 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
                               - (pageRecordInfo.freeSpacePos);
 
   //Transform raw Data into record format
-  char *record = NULL;
+  char *record = (char *)malloc(PAGE_SIZE);
   // if length of new record data < length of old record data
-  r_slot newRecordLength = getLengthOfRecordAndTransformRecord(data, recordDescriptor, &record);
+  r_slot newRecordLength = getLengthOfRecordAndTransformRecord(data, recordDescriptor, record);
 
   short oldLength = slot.length;
   short lengthDiff = oldLength - newRecordLength;
@@ -1228,8 +1259,6 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 
   return 0;
 }
-
-
 
 RC RBFM_ScanIterator::close()
 {
