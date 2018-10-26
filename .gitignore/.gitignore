@@ -36,3 +36,6 @@
 *.cproject
 *.project
 *.settings/language.settings.xml
+
+#ignore vscode .json files
+*.json
