@@ -154,6 +154,8 @@ protected:
   ~RecordBasedFileManager();
 
 private:
+  RID getInternalRID(vector<Attribute>& recordDesc, FileHandle& fileHandle, const RID& externalRID);
+  char* readRecordInInternalFormat(FileHandle& fileHandle, const RID& rid);
   static RecordBasedFileManager *_rbf_manager;
   PagedFileManager *pfm;
 };
@@ -219,6 +221,14 @@ public:
   bool isTombstone();
 
   bool isFieldNull(r_slot fieldIndex);
+
+  /**
+   *  Gets the internal RID in a record tombstone. <br>
+   *  If the record's Tombstone indicator is false,
+   *  then this method will throw an error and terminate
+   * @return
+   */
+  RID getTombstoneRID();
 };
 
 /**
