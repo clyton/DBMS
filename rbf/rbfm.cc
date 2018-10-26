@@ -874,14 +874,13 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
   }
   memcpy(data, nullIndicatorArray, 1);
   AttrType attributeType = record.getAttributeType(attributeName);
-  short valueOffset = 1;
   // if (attributeType == TypeVarChar)
   // {
   //   unsigned attributeLength = record.getAttributeLength(attributeName);
   //   memcpy((char *)data + valueOffset, &attributeLength, 4);
   //   valueOffset += 4;
   // }
-  memcpy((char *)data + valueOffset, attributeValue, strlen(attributeValue));
+  memcpy((char *)data, attributeValue + 1, strlen(attributeValue) - 1);
 
   free(pageData);
   free(recordData);
@@ -1041,17 +1040,6 @@ AttrType Record::getAttributeType(const string &attributeName)
   }
 }
 
-AttrLength Record::getAttributeLength(const string &attributeName)
-{
-  for (Attribute a : recordDescriptor)
-  {
-    if (a.name.compare(attributeName) == 0)
-    {
-      return a.length;
-    }
-  }
-}
-
 bool Record::isFieldNull(r_slot fieldIndex)
 {
 
@@ -1203,6 +1191,9 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
         return true;
       else
         return false;
+      break;
+    default:
+      return false;
       break;
     }
   }

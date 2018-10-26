@@ -120,12 +120,12 @@ int UnitTest(RecordBasedFileManager *rbfm)
 
   RID ridScan;
   void *returnedDataScan = malloc(200);
-  int ageReturned = 0;
+  int salaryReturned = 0;
   while (rbfm_scan.getNextRecord(ridScan, returnedDataScan) != RBFM_EOF)
   {
     cout << "Returned Salary: " << *(int *)((char *)returnedDataScan + 1) << endl;
-    ageReturned = *(int *)((char *)returnedDataScan + 1);
-    assert(ageReturned == 6200 && "getNextRecord() should not fail.");
+    salaryReturned = *(int *)((char *)returnedDataScan + 1);
+    assert(salaryReturned == 6200 && "getNextRecord() should not fail.");
   }
 
   // Close the file "test8"

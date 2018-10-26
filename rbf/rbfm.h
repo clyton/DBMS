@@ -217,8 +217,6 @@ public:
 
   AttrType getAttributeType(const string &attributeName);
 
-  AttrLength getAttributeLength(const string &attributeName);
-
   r_slot getRecordSize();
 
   bool isTombstone();
