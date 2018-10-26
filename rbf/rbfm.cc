@@ -1022,6 +1022,17 @@ char *Record::getAttributeValue(r_slot fieldNumber)
   return attributeValue;
 }
 
+AttrType Record::getAttributeType(const string &attributeName)
+{
+  for (Attribute a : recordDescriptor)
+  {
+    if (a.name.compare(attributeName) == 0)
+    {
+      return a.type;
+    }
+  }
+}
+
 bool Record::isFieldNull(r_slot fieldIndex)
 {
 
@@ -1036,6 +1047,8 @@ RBFM_ScanIterator::RBFM_ScanIterator()
 {
   isEOF = 0;
   conditionAttribute = "";
+  nextRID.pageNum = 0;
+  nextRID.slotNum = 0;
 }
 
 bool CheckCondition(AttrType conditionAttributeType, string attributeValue, const void *value, CompOp compOp)
@@ -1159,55 +1172,19 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 
   while (!hitFound)
   {
-    //Iterate till hit found
-    //get record for each incremental RID
-    //Check condition for each iteration
-    //When hit found break loop
-    //Extract attributes from record and return
-    rbfm->readRecord(*fileHandle, recordDescriptor, rid, &recordData);
+    char *pageData = (char *)malloc(PAGE_SIZE);
+    fileHandle->readPage(rid.pageNum, pageData);
+    SlotDirectory slot;
+    getSlotForRID(pageData, nextRID, slot);
 
-    //Record record = new Record(recordDescriptor, (char *)recordData);
-    //record.getAttributeValue(conditionAttribute);
+    memcpy(recordData, pageData + slot.offset, slot.length);
+    Record record = Record(recordDescriptor, (char *)recordData);
 
-    r_slot fieldPointerIndex = 0;
-    AttrType conditionAttributeType;
-    for (Attribute a : recordDescriptor)
-    {
-      if (a.name.compare(conditionAttribute))
-      {
-        conditionAttributeType = a.type;
-        break;
-      }
-      fieldPointerIndex++;
-    }
+    char *attributeValue;
+    attributeValue = record.getAttributeValue(conditionAttribute);
 
-    r_slot numberOfFields = 0;
-    memcpy(&numberOfFields, (char *)recordData, sizeof(numberOfFields));
-    r_slot *fieldPointers = new r_slot[numberOfFields];
-    memcpy(&fieldPointers,
-           (char *)recordData + sizeof(numberOfFields) + sizeof(char) + sizeof(RID),
-           sizeof(r_slot) * numberOfFields);
+    AttrType conditionAttributeType = record.getAttributeType(conditionAttribute);
 
-    int nullFieldsIndicatorLength = ceil(numberOfFields / 8.0);
-    unsigned char *nullIndicatorArray = (unsigned char *)malloc(nullFieldsIndicatorLength);
-    memcpy(nullIndicatorArray, (char *)recordData + sizeof(numberOfFields) + sizeof(char) + sizeof(RID) + (numberOfFields * sizeof(fieldPointers[0])),
-           nullFieldsIndicatorLength);
-
-    r_slot fieldStartPointer = fieldPointers[fieldPointerIndex];
-    string attributeValue = "";
-    if (conditionAttributeType == TypeVarChar)
-    {
-      int lengthOfString = 0;
-      memcpy(&lengthOfString, (char *)recordData + fieldStartPointer,
-             sizeof(lengthOfString));
-      memcpy(&attributeValue,
-             (char *)recordData + fieldStartPointer + sizeof(lengthOfString),
-             lengthOfString);
-    }
-    else
-    {
-      memcpy(&attributeValue, (char *)recordData + fieldStartPointer, 4);
-    }
     if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
       hitFound = true;
     else
@@ -1250,12 +1227,9 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
       {
         if (a.name.compare(s))
         {
-          //short attrNullIndicatorByte = (attrFieldPointerIndex + 1 / 8);
-          //char nullBit = nullIndicatorArray[attrNullIndicatorByte] & (1 << (7 - attrFieldPointerIndex + (8 * attrNullIndicatorByte)));
           char nullBit = isFieldNull(nullIndicatorArray, attrFieldPointerIndex) ? 0 : 1;
           int byteNumber = attrFieldPointerIndex / 8;
           attrNullIndicatorArray[byteNumber] |= (nullBit << (7 - attrFieldPointerIndex % 8));
-          //memcpy((char *)attrNullIndicatorArray + attrNullFieldPointerIndex, nullBit, 1);
           if (a.type == TypeVarChar)
           {
             int varcharLength = 0;
@@ -1272,9 +1246,6 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
         attrFieldPointerIndex++;
       }
     }
-    //bitset<attrNumberOfFields> bset(string(attrNullIndicatorArray));
-    //unsigned char *attrNullIndicatorArrayComplete = (unsigned char *)malloc(attrNullFieldsIndicatorLength);
-    //memcpy((char *)attrNullIndicatorArrayComplete, bset, )
     memcpy((char *)data, attrNullIndicatorArray, attrNullFieldsIndicatorLength);
   }
 
