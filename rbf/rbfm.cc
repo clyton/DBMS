@@ -1038,7 +1038,7 @@ AttrType Record::getAttributeType(const string &attributeName)
       return a.type;
     }
   }
-  return TypeInt;//TODO: Cerr
+  return TypeInt; //TODO: Cerr
 }
 
 bool Record::isFieldNull(r_slot fieldIndex)
@@ -1229,7 +1229,10 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 
     AttrType conditionAttributeType = record.getAttributeType(conditionAttribute);
     if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
+    {
       hitFound = true;
+      cout << rid.slotNum;
+    }
     else
     {
       rid.slotNum++;
@@ -1280,7 +1283,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     {
       for (string s : attributeNames)
       {
-        if (a.name.compare(s))
+        if (a.name.compare(s) == 0)
         {
           char nullBit = isFieldNull(nullIndicatorArray, attrFieldPointerIndex) ? 0 : 1;
           int byteNumber = attrFieldPointerIndex / 8;
