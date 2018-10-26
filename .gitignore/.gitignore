@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+
+#ignore eclipse files
+*.cproject
+*.project
+*.settings/language.settings.xml
