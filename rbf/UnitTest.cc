@@ -5,9 +5,9 @@
  *      Author: dantis
  */
 
-#include <rbf/pfm.h>
-#include <rbf/rbfm.h>
-#include <rbf/test_util.h>
+#include "pfm.h"
+#include "rbfm.h"
+#include "test_util.h"
 #include <stdlib.h>
 #include <cassert>
 #include <cstring>
@@ -110,6 +110,23 @@ int UnitTest(RecordBasedFileManager *rbfm)
   unsigned char nullIndicatorArray = attributeData[0];
   if (!isFieldNullTest(&nullIndicatorArray, 0))
     assert(strcmp(attributeData + 1, "Anteater") == 0 && "Anteater attribute should be same");
+
+  //Test scan attribute
+  RBFM_ScanIterator rbfm_scan;
+  vector<string> conditionAttributes;
+  conditionAttributes.push_back("Salary");
+  rc = rbfm->scan(fileHandle, recordDescriptor, "EmpName", EQ_OP, "Anteater", conditionAttributes, rbfm_scan);
+  assert(rc == success && "RBFM::scan() should not fail.");
+
+  RID ridScan;
+  void *returnedDataScan = malloc(200);
+  int ageReturned = 0;
+  while (rbfm_scan.getNextRecord(ridScan, returnedDataScan) != RBFM_EOF)
+  {
+    cout << "Returned Salary: " << *(int *)((char *)returnedDataScan + 1) << endl;
+    ageReturned = *(int *)((char *)returnedDataScan + 1);
+    assert(ageReturned == 6200 && "getNextRecord() should not fail.");
+  }
 
   // Close the file "test8"
   rc = rbfm->closeFile(fileHandle);
