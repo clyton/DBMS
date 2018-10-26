@@ -115,7 +115,7 @@ int UnitTest(RecordBasedFileManager *rbfm)
   RBFM_ScanIterator rbfm_scan;
   vector<string> conditionAttributes;
   conditionAttributes.push_back("Salary");
-  rc = rbfm->scan(fileHandle, recordDescriptor, "EmpName", EQ_OP, "Anteater", conditionAttributes, rbfm_scan);
+  rc = rbfm->scan(fileHandle, recordDescriptor, "EmpName", EQ_OP, attributeData, conditionAttributes, rbfm_scan);
   assert(rc == success && "RBFM::scan() should not fail.");
 
   RID ridScan;

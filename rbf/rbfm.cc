@@ -1071,7 +1071,7 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
 
   if (!isValueNull)
   {
-    unsigned valueLength = strlen((char *)value) - 1;
+    unsigned valueLength = strlen((char *)value + 1);
     char *conditionValue = (char *)malloc(valueLength);
     memcpy(conditionValue, (char *)value + 1, valueLength);
 
