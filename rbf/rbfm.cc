@@ -873,7 +873,15 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
     makeFieldNull(nullIndicatorArray, 0);
   }
   memcpy(data, nullIndicatorArray, 1);
-  memcpy((char *)data + 1, attributeValue, strlen(attributeValue));
+  AttrType attributeType = record.getAttributeType(attributeName);
+  short valueOffset = 1;
+  // if (attributeType == TypeVarChar)
+  // {
+  //   unsigned attributeLength = record.getAttributeLength(attributeName);
+  //   memcpy((char *)data + valueOffset, &attributeLength, 4);
+  //   valueOffset += 4;
+  // }
+  memcpy((char *)data + valueOffset, attributeValue, strlen(attributeValue));
 
   free(pageData);
   free(recordData);
@@ -910,7 +918,7 @@ void Record::setInputData()
   r_slot sizeOfInputData = getRawRecordSize();
   inputData = (char *)malloc(sizeOfInputData);
   memcpy(inputData,
-         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) +  sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields, sizeOfInputData);
+         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields, sizeOfInputData);
 }
 
 void Record::setNullIndicatorArray()
@@ -1033,6 +1041,17 @@ AttrType Record::getAttributeType(const string &attributeName)
   }
 }
 
+AttrLength Record::getAttributeLength(const string &attributeName)
+{
+  for (Attribute a : recordDescriptor)
+  {
+    if (a.name.compare(attributeName) == 0)
+    {
+      return a.length;
+    }
+  }
+}
+
 bool Record::isFieldNull(r_slot fieldIndex)
 {
 
@@ -1051,112 +1070,143 @@ RBFM_ScanIterator::RBFM_ScanIterator()
   nextRID.slotNum = 0;
 }
 
-bool CheckCondition(AttrType conditionAttributeType, string attributeValue, const void *value, CompOp compOp)
+bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const void *value, CompOp compOp)
 {
-  if (conditionAttributeType == TypeVarChar)
+  //Removing 1 byte of nullIndicator from value
+  unsigned char *valueNullIndicator = (unsigned char *)malloc(1);
+  memcpy(valueNullIndicator, value, 1);
+  bool isValueNull = isFieldNull(valueNullIndicator, 0);
+
+  if (!isValueNull)
+  {
+    unsigned valueLength = strlen((char *)value) - 1;
+    char *conditionValue = (char *)malloc(valueLength);
+    memcpy(conditionValue, (char *)value + 1, valueLength);
+
+    if (conditionAttributeType == TypeVarChar)
+    {
+      switch (compOp)
+      {
+      case EQ_OP:
+        if (strcmp(attributeValue, (const char *)conditionValue) == 0)
+          return true;
+        break;
+      case LT_OP:
+        if (strcmp(attributeValue, (const char *)conditionValue) < 0)
+          return true;
+        break;
+      case LE_OP:
+        if (strcmp(attributeValue, (const char *)conditionValue) <= 0)
+          return true;
+        break;
+      case GT_OP:
+        if (strcmp(attributeValue, (const char *)conditionValue) > 0)
+          return true;
+        break;
+      case GE_OP:
+        if (strcmp(attributeValue, (const char *)conditionValue) >= 0)
+          return true;
+        break;
+      case NE_OP:
+        if (strcmp(attributeValue, (const char *)conditionValue) != 0)
+          return true;
+        break;
+      case NO_OP:
+        return true;
+      }
+    }
+    else if (conditionAttributeType == TypeInt)
+    {
+      int attrValue = atoi(attributeValue);
+      int compValue = 0;
+      memcpy(&compValue, conditionValue, sizeof(int));
+      switch (compOp)
+      {
+      case EQ_OP:
+        if (attrValue == compValue)
+          return true;
+        break;
+      case LT_OP:
+        if (attrValue < compValue)
+          return true;
+        break;
+      case LE_OP:
+        if (attrValue <= compValue)
+          return true;
+        break;
+      case GT_OP:
+        if (attrValue > compValue)
+          return true;
+        break;
+      case GE_OP:
+        if (attrValue >= compValue)
+          return true;
+        break;
+      case NE_OP:
+        if (attrValue != compValue)
+          return true;
+        break;
+      case NO_OP:
+        return true;
+        break;
+      }
+    }
+    else if (conditionAttributeType == TypeReal)
+    {
+      float attrValue = strtof(attributeValue, 0);
+      float compValue = 0.0;
+      memcpy(&compValue, conditionValue, sizeof(float));
+      switch (compOp)
+      {
+      case EQ_OP:
+        if (attrValue == compValue)
+          return true;
+        break;
+      case LT_OP:
+        if (attrValue < compValue)
+          return true;
+        break;
+      case LE_OP:
+        if (attrValue <= compValue)
+          return true;
+        break;
+      case GT_OP:
+        if (attrValue > compValue)
+          return true;
+        break;
+      case GE_OP:
+        if (attrValue >= compValue)
+          return true;
+        break;
+      case NE_OP:
+        if (attrValue != compValue)
+          return true;
+        break;
+      case NO_OP:
+        return true;
+        break;
+      }
+    }
+  }
+  else
   {
     switch (compOp)
     {
     case EQ_OP:
-      if (strcmp(attributeValue.c_str(), (const char *)value) == 0)
+      if (attributeValue == NULL)
         return true;
-      break;
-    case LT_OP:
-      if (strcmp(attributeValue.c_str(), (const char *)value) < 0)
-        return true;
-      break;
-    case LE_OP:
-      if (strcmp(attributeValue.c_str(), (const char *)value) <= 0)
-        return true;
-      break;
-    case GT_OP:
-      if (strcmp(attributeValue.c_str(), (const char *)value) > 0)
-        return true;
-      break;
-    case GE_OP:
-      if (strcmp(attributeValue.c_str(), (const char *)value) >= 0)
-        return true;
+      else
+        return false;
       break;
     case NE_OP:
-      if (strcmp(attributeValue.c_str(), (const char *)value) != 0)
+      if (attributeValue != NULL)
         return true;
-      break;
-    case NO_OP:
-      return true;
-    }
-  }
-  else if (conditionAttributeType == TypeInt)
-  {
-    int attrValue = atoi(attributeValue.c_str());
-    int compValue = 0;
-    memcpy(&compValue, value, sizeof(int));
-    switch (compOp)
-    {
-    case EQ_OP:
-      if (attrValue == compValue)
-        return true;
-      break;
-    case LT_OP:
-      if (attrValue < compValue)
-        return true;
-      break;
-    case LE_OP:
-      if (attrValue <= compValue)
-        return true;
-      break;
-    case GT_OP:
-      if (attrValue > compValue)
-        return true;
-      break;
-    case GE_OP:
-      if (attrValue >= compValue)
-        return true;
-      break;
-    case NE_OP:
-      if (attrValue != compValue)
-        return true;
-      break;
-    case NO_OP:
-      return true;
+      else
+        return false;
       break;
     }
   }
-  else if (conditionAttributeType == TypeReal)
-  {
-    float attrValue = strtof(attributeValue.c_str(), 0);
-    float compValue = 0.0;
-    memcpy(&compValue, value, sizeof(float));
-    switch (compOp)
-    {
-    case EQ_OP:
-      if (attrValue == compValue)
-        return true;
-      break;
-    case LT_OP:
-      if (attrValue < compValue)
-        return true;
-      break;
-    case LE_OP:
-      if (attrValue <= compValue)
-        return true;
-      break;
-    case GT_OP:
-      if (attrValue > compValue)
-        return true;
-      break;
-    case GE_OP:
-      if (attrValue >= compValue)
-        return true;
-      break;
-    case NE_OP:
-      if (attrValue != compValue)
-        return true;
-      break;
-    case NO_OP:
-      return true;
-      break;
-    }
-  }
+
   return false;
 }
 
@@ -1184,7 +1234,6 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     attributeValue = record.getAttributeValue(conditionAttribute);
 
     AttrType conditionAttributeType = record.getAttributeType(conditionAttribute);
-
     if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
       hitFound = true;
     else
