@@ -301,6 +301,18 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
 {
   if (isSystemTable(tableName))
     return -1;
+  vector<Attribute> attrs;
+  getAttributes(tableName, attrs);
+
+  FileHandle fileHandle;
+  if (rbfm->openFile(tableName, fileHandle) != 0)
+    return -1;
+
+  if (rbfm->insertRecord(fileHandle, attrs, data, rid) != 0)
+    return -1;
+
+  if (rbfm->closeFile(fileHandle) != 0)
+    return -1;
 
   return success;
 }
