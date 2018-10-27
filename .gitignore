@@ -81,3 +81,6 @@ rm/rmtest_delete_tables
 .cproject
 language.settings.xml
 
+#Ignore vscode .json config files
+*.json
+
