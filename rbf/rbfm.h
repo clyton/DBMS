@@ -154,7 +154,7 @@ protected:
   ~RecordBasedFileManager();
 
 private:
-  RID getInternalRID(vector<Attribute>& recordDesc, FileHandle& fileHandle, const RID& externalRID);
+  RID getInternalRID(const vector<Attribute>& recordDesc, FileHandle& fileHandle, const RID& externalRID);
   char* readRecordInInternalFormat(FileHandle& fileHandle, const RID& rid);
   static RecordBasedFileManager *_rbf_manager;
   PagedFileManager *pfm;

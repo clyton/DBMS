@@ -579,30 +579,30 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
                                       const vector<Attribute> &recordDescriptor, const RID &rid, void *data)
 {
+
+	RID externalRID = rid;
+
+	RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
   char *pageData = (char *)malloc(PAGE_SIZE);
-  fileHandle.readPage(rid.pageNum, pageData);
+  fileHandle.readPage(internalRID.pageNum, pageData);
 
   SlotDirectory slot;
-  getSlotForRID(pageData, rid, slot);
+  getSlotForRID(pageData, internalRID, slot);
 
   // If trying to read a deleted record return failure
   if (slot.offset == USHRT_MAX)
   {
     return failure;
   }
-  // cout << "Reading Data" << endl;
-  // cout << "For slot " << rid.slotNum << " : Slot offset from file is "<<  slot.offset << ". And slot length is " << slot.length << endl;
-  PageRecordInfo pri;
-  getPageRecordInfo(pri, (char *)pageData);
 
-  char isTombstone;
-  memcpy(&isTombstone, pageData + slot.offset + 4, 1);
-  if (isTombstone == 1)
-  {
-    RID newRID;
-    memcpy(&newRID, pageData + slot.offset + 5, sizeof(newRID));
-    return readRecord(fileHandle, recordDescriptor, newRID, data);
-  }
+//  char isTombstone;
+//  memcpy(&isTombstone, pageData + slot.offset + 4, 1);
+//  if (isTombstone == 1)
+//  {
+//    RID newRID;
+//    memcpy(&newRID, pageData + slot.offset + 5, sizeof(newRID));
+//    return readRecord(fileHandle, recordDescriptor, newRID, data);
+//  }
   // cout << "Record Directory : Number of records : " << pri.numberOfRecords <<". Free Space : " << pri.freeSpacePos << endl;
   r_slot recordMetaDataLength = getRecordMetaDataSize(recordDescriptor);
   memcpy(data, pageData + slot.offset + recordMetaDataLength,
@@ -659,8 +659,11 @@ RC RecordBasedFileManager::printRecord(
 RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
                                         const vector<Attribute> &recordDescriptor, const RID &rid)
 {
+	RID externalRID = rid;
 
-  PageNum pageNum = rid.pageNum;
+	RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
+
+  PageNum pageNum = internalRID.pageNum;
 
   // read page from which to delete record
   char *pageData = (char *)malloc(PAGE_SIZE);
@@ -672,14 +675,14 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
 
   // get the slot directory
   SlotDirectory slotToDelete;
-  getSlotForRID(pageData, rid, slotToDelete);
+  getSlotForRID(pageData, internalRID, slotToDelete);
   r_slot lengthOfDeletedRecord = slotToDelete.length;
 
   // Are you deleting the last record in the page
-  if (rid.slotNum + 1 == pri.numberOfSlots)
+  if (internalRID.slotNum + 1 == pri.numberOfSlots)
   {
     slotToDelete.offset = USHRT_MAX;
-    updateSlotDirectory(rid, pageData, slotToDelete);
+    updateSlotDirectory(internalRID, pageData, slotToDelete);
 
     pri.freeSpacePos -= lengthOfDeletedRecord;
     updatePageRecordInfo(pri, pageData);
@@ -691,13 +694,13 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
   {
     // for each consecutive record
     slotToDelete.offset = USHRT_MAX;
-    updateSlotDirectory(rid, pageData, slotToDelete);
+    updateSlotDirectory(internalRID, pageData, slotToDelete);
 
     //		pri.numberOfRecords -= 1;
     pri.freeSpacePos -= lengthOfDeletedRecord;
     updatePageRecordInfo(pri, pageData);
 
-    for (r_slot islot = rid.slotNum + 1; islot < pri.numberOfSlots;
+    for (r_slot islot = internalRID.slotNum + 1; islot < pri.numberOfSlots;
          islot++)
     {
       RID ridOfRecordToShift;
@@ -719,14 +722,23 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
                                         const vector<Attribute> &recordDescriptor, const void *data,
                                         const RID &rid)
 {
+	RID externalRID = rid;
+
+	RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
+
   // Get the page where the record is present
-  int pageNum = rid.pageNum;
+  int pageNum = internalRID.pageNum;
   char *pageData = (char *)malloc(PAGE_SIZE);
   fileHandle.readPage(pageNum, pageData);
 
-  // Get the rid slot where the record is located
+  // Get the internalRID slot where the record is located
   SlotDirectory slot;
-  getSlotForRID(pageData, rid, slot);
+  getSlotForRID(pageData, internalRID, slot);
+
+  // If the record has been deleted return failure
+  if(slot.offset == USHRT_MAX){
+	  return failure;
+  }
 
   //get page record info
   PageRecordInfo pageRecordInfo;
@@ -749,12 +761,12 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 
     // update the length of old slot with new slot,
     slot.length = newRecordLength;
-    updateSlotDirectory(rid, pageData, slot);
+    updateSlotDirectory(internalRID, pageData, slot);
 
     pageRecordInfo.freeSpacePos -= (lengthDiff);
     updatePageRecordInfo(pageRecordInfo, pageData);
 
-    for (r_slot islot = rid.slotNum + 1; islot < pageRecordInfo.numberOfSlots;
+    for (r_slot islot = internalRID.slotNum + 1; islot < pageRecordInfo.numberOfSlots;
          islot++)
     {
       RID ridOfRecordToShift;
@@ -769,7 +781,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
   {
     if (freeSpaceAvailable >= newRecordLength - slot.length)
     {
-      for (r_slot islot = pageRecordInfo.numberOfSlots - 1; islot > rid.slotNum;
+      for (r_slot islot = pageRecordInfo.numberOfSlots - 1; islot > internalRID.slotNum;
            islot--)
       {
         RID ridOfRecordToShift;
@@ -785,7 +797,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
 
       // update the length of old slot with new slot,
       slot.length = newRecordLength;
-      updateSlotDirectory(rid, pageData, slot);
+      updateSlotDirectory(internalRID, pageData, slot);
 
       pageRecordInfo.freeSpacePos += (-lengthDiff);
       updatePageRecordInfo(pageRecordInfo, pageData);
@@ -794,14 +806,14 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
     {
       //Update the tombstone to 1
       char isTombstone = 1;
-      memmove(pageData + slot.offset + SLOT_SIZE, &isTombstone, sizeof(char));
+      memmove(pageData + slot.offset + sizeof(r_slot), &isTombstone, sizeof(char));
       //Move record to next available page and leave tombstone
       RID newRID;
       insertRecord(fileHandle, recordDescriptor, data, newRID);
       //Update the tombstone indicator pointer
-      memmove(pageData + slot.offset + SLOT_SIZE + sizeof(char), &newRID, sizeof(RID));
+      memmove(pageData + slot.offset + sizeof(r_slot) + sizeof(char), &newRID, sizeof(RID));
 
-      for (r_slot islot = rid.slotNum + 1; islot < pageRecordInfo.numberOfSlots;
+      for (r_slot islot = internalRID.slotNum + 1; islot < pageRecordInfo.numberOfSlots;
            islot++)
       {
         RID ridOfRecordToShift;
@@ -1470,13 +1482,16 @@ void RawRecordPreparer::resetCounters()
  * @param externalRID : The rid given by the user
  * @return the internal RID where the record is actually stored
  */
-RID RecordBasedFileManager::getInternalRID(vector<Attribute>& recordDesc, FileHandle& fileHandle, const RID& externalRID) {
+RID RecordBasedFileManager::getInternalRID(const vector<Attribute>& recordDesc, FileHandle& fileHandle, const RID& externalRID) {
 	char* recordInInternalFormat = readRecordInInternalFormat(fileHandle, externalRID);
+	// record has been deleted. Return the original RID
+	if (recordInInternalFormat == NULL){
+		return externalRID;
+	}
 	Record record = Record(recordDesc, recordInInternalFormat);
 
 	if (record.isTombstone()){
 		RID internalRID = record.getTombstoneRID();
-		free(recordInInternalFormat);
 		return getInternalRID(recordDesc, fileHandle, internalRID);
 	}
 	else{
@@ -1508,6 +1523,13 @@ char* RecordBasedFileManager::readRecordInInternalFormat(FileHandle& fileHandle,
 
 	SlotDirectory slot;
 	getSlotForRID(pageData, rid, slot);
+
+	/**
+	 * if record is deleted
+	 */
+	if (slot.offset == USHRT_MAX){
+		return NULL;
+	}
 
 	char* internalRecordData = (char*) malloc(slot.length);
 
