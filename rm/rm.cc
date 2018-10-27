@@ -302,7 +302,8 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
   if (isSystemTable(tableName))
     return -1;
   vector<Attribute> attrs;
-  getAttributes(tableName, attrs);
+  if (getAttributes(tableName, attrs) != 0)
+    return -1;
 
   FileHandle fileHandle;
   if (rbfm->openFile(tableName, fileHandle) != 0)
@@ -319,7 +320,24 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
 
 RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
 {
-  return -1;
+  if (isSystemTable(tableName))
+    return -1;
+
+  FileHandle fileHandle;
+  if (rbfm->openFile(tableName, fileHandle) != 0)
+    return -1;
+
+  vector<Attribute> attrs;
+  if (getAttributes(tableName, attrs) != 0)
+    return -1;
+
+  if (rbfm->deleteRecord(fileHandle, attrs, rid) != 0)
+    return -1;
+
+  if (rbfm->closeFile(fileHandle) != 0)
+    return -1;
+
+  return success;
 }
 
 RC RelationManager::updateTuple(const string &tableName, const void *data, const RID &rid)
