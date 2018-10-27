@@ -1233,8 +1233,6 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
       hitFound = true;
     }
 
-    char *pageData = (char *)malloc(PAGE_SIZE);
-    fileHandle->readPage(rid.pageNum, pageData);
     PageRecordInfo pri;
     getPageRecordInfo(pri, pageData);
     if (rid.slotNum + 1 > pri.numberOfSlots)
