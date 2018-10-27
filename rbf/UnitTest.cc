@@ -31,10 +31,8 @@ int UnitTest(RecordBasedFileManager *rbfm)
   // 2. Open Record-Based File
   // 3. Insert Record
   // 4. Read Record
-  // 5. Read Attribute
-  // 6. Scan Attribute
-  // 7. Close Record-based File
-  // 8. Destroy Record-Based File
+  // 5. Close Record-Based File
+  // 6. Destroy Record-Based File
   cout << endl
        << "***** In RBF Test Case 8 *****" << endl;
 
@@ -103,31 +101,19 @@ int UnitTest(RecordBasedFileManager *rbfm)
   cout << endl;
 
   // Compare whether the string attribute is the same or not
-  char *attributeData = (char *)malloc(10);
+  char *attributeData = (char *)malloc(30);
+  memset(attributeData, 0, 30);
   rc = rbfm->readAttribute(fileHandle, recordDescriptor, rid, "EmpName", attributeData);
   assert(rc == success && "reading attribute should not fail");
 
   unsigned char nullIndicatorArray = attributeData[0];
   if (!isFieldNullTest(&nullIndicatorArray, 0))
-    assert(strcmp(attributeData + 1, "Anteater") == 0 && "Anteater attribute should be same");
-
-  //Test scan attribute
-  RBFM_ScanIterator rbfm_scan;
-  vector<string> conditionAttributes;
-  conditionAttributes.push_back("Salary");
-  rc = rbfm->scan(fileHandle, recordDescriptor, "EmpName", EQ_OP, attributeData, conditionAttributes, rbfm_scan);
-  assert(rc == success && "RBFM::scan() should not fail.");
-
-  RID ridScan;
-  void *returnedDataScan = malloc(200);
-  int salaryReturned = 0;
-  while (rbfm_scan.getNextRecord(ridScan, returnedDataScan) != RBFM_EOF)
   {
-    cout << "Returned Salary: " << *(int *)((char *)returnedDataScan + 1) << endl;
-    salaryReturned = *(int *)((char *)returnedDataScan + 1);
-    assert(salaryReturned == 6200 && "getNextRecord() should not fail.");
+    assert(strcmp(attributeData + 5, "Anteater") == 0 && "Anteater attribute should be same");
+    int lengthOfString = 0;
+    memcpy(&lengthOfString, attributeData + 1, sizeof(int));
+    assert(lengthOfString == strlen("Anteater") && "Read attribute should return the length of the string");
   }
-
   // Close the file "test8"
   rc = rbfm->closeFile(fileHandle);
   assert(rc == success && "Closing the file should not fail.");
@@ -141,11 +127,7 @@ int UnitTest(RecordBasedFileManager *rbfm)
 
   free(record);
   free(returnedData);
-
-  cout << "RBF Test Case 8 Finished! The result will be examined." << endl
-       << endl;
-
-  return 0;
+  return -1;
 }
 
 int main()

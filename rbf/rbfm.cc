@@ -864,6 +864,7 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
 
   Record record = Record(recordDescriptor, recordData);
   char *attributeValue = record.getAttributeValue(attributeName);
+  AttrType attributeType = record.getAttributeType(attributeName);
 
   // Add a one byte null indicator array always for read record
   unsigned char *nullIndicatorArray = (unsigned char *)malloc(1);
@@ -873,14 +874,14 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
     makeFieldNull(nullIndicatorArray, 0);
   }
   memcpy(data, nullIndicatorArray, 1);
-  AttrType attributeType = record.getAttributeType(attributeName);
-  // if (attributeType == TypeVarChar)
-  // {
-  //   unsigned attributeLength = record.getAttributeLength(attributeName);
-  //   memcpy((char *)data + valueOffset, &attributeLength, 4);
-  //   valueOffset += 4;
-  // }
-  memcpy((char *)data + 1, attributeValue, strlen(attributeValue));
+  int offset = 1;
+  if (attributeType == TypeVarChar)
+  {
+    int strlength = strlen(attributeValue);
+    memcpy((char *)data + offset, &strlength, sizeof(int));
+    offset += sizeof(int);
+  }
+  memcpy((char *)data + offset, attributeValue, strlen(attributeValue));
 
   free(pageData);
   free(recordData);
@@ -1522,4 +1523,63 @@ void RawRecordPreparer::resetCounters()
   }
   recordData = (char *)malloc(currentRecordSize);
   recordDataOffset += nullIndicatorArraySize;
+}
+
+/**
+ *
+ * @param externalRID : The rid given by the user
+ * @return the internal RID where the record is actually stored
+ */
+RID RecordBasedFileManager::getInternalRID(vector<Attribute> &recordDesc, FileHandle &fileHandle, const RID &externalRID)
+{
+  char *recordInInternalFormat = readRecordInInternalFormat(fileHandle, externalRID);
+  Record record = Record(recordDesc, recordInInternalFormat);
+
+  if (record.isTombstone())
+  {
+    RID internalRID = record.getTombstoneRID();
+    free(recordInInternalFormat);
+    return getInternalRID(recordDesc, fileHandle, internalRID);
+  }
+  else
+  {
+    free(recordInInternalFormat);
+    return externalRID;
+  }
+}
+
+RID Record::getTombstoneRID()
+{
+  if (isTombstone())
+  {
+    return tombstoneRID;
+  }
+  else
+  {
+    cerr << "Record::getTombstoneRID() : Trying to read tombstone RID for a record that is not a tombstone" << endl;
+    cerr << "Exiting" << endl;
+    exit(1);
+  }
+}
+/**
+ * This method will not resolve the RID to internal RID.
+ * @param fileHandle
+ * @param rid
+ * @return
+ */
+char *RecordBasedFileManager::readRecordInInternalFormat(FileHandle &fileHandle, const RID &rid)
+{
+
+  char *pageData = (char *)malloc(PAGE_SIZE);
+  fileHandle.readPage(rid.pageNum, pageData);
+
+  SlotDirectory slot;
+  getSlotForRID(pageData, rid, slot);
+
+  char *internalRecordData = (char *)malloc(slot.length);
+
+  memcpy(internalRecordData, pageData + slot.offset, slot.length);
+
+  free(pageData);
+  return internalRecordData;
 }
