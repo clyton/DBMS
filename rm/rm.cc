@@ -389,7 +389,21 @@ RC RelationManager::printTuple(const vector<Attribute> &attrs, const void *data)
 
 RC RelationManager::readAttribute(const string &tableName, const RID &rid, const string &attributeName, void *data)
 {
-  return -1;
+  FileHandle fileHandle;
+  if (rbfm->openFile(tableName, fileHandle) != 0)
+    return -1;
+
+  vector<Attribute> attrs;
+  if (getAttributes(tableName, attrs) != 0)
+    return -1;
+
+  if (rbfm->readAttribute(fileHandle, attrs, rid, attributeName, data) != 0)
+    return -1;
+
+  if (rbfm->closeFile(fileHandle) != 0)
+    return -1;
+
+  return success;
 }
 
 RC RelationManager::scan(const string &tableName,
