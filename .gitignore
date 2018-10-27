@@ -1,0 +1,83 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Binary dependencies
+rbf/rbftest1
+rbf/rbftest2
+rbf/rbftest3
+rbf/rbftest4
+rbf/rbftest5
+rbf/rbftest6
+rbf/rbftest7
+rbf/rbftest8
+rbf/rbftest8b
+rbf/rbftest9
+rbf/rbftest10
+rbf/rbftest11
+rbf/rbftest12
+rbf/rbftest10
+rbf/rbftest11
+rbf/rbftest12
+rbf/rbftest_update
+rbf/rbftest_delete
+rbf/UnitTest
+
+# ignore all binary dependencies in rm
+*.tbl
+rm/rmtest_00
+rm/rmtest_01
+rm/rmtest_02
+rm/rmtest_03
+rm/rmtest_04
+rm/rmtest_05
+rm/rmtest_06
+rm/rmtest_07
+rm/rmtest_08
+rm/rmtest_09
+rm/rmtest_10
+rm/rmtest_11
+rm/rmtest_12
+rm/rmtest_13
+rm/rmtest_14
+rm/rmtest_15
+rm/rmtest_extra_1
+rm/rmtest_extra_2
+rm/rmtest_create_tables
+rm/rmtest_13b
+rm/rmtest_delete_tables
+
+#Ignore all the dot files
+.project
+.cproject
+language.settings.xml
+

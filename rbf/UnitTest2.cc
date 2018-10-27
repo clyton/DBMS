@@ -31,13 +31,15 @@ int UnitTest(RecordBasedFileManager *rbfm)
   // 2. Open Record-Based File
   // 3. Insert Record
   // 4. Read Record
-  // 5. Close Record-Based File
-  // 6. Destroy Record-Based File
+  // 5. Read Attribute
+  // 6. Scan Attribute
+  // 7. Close Record-based File
+  // 8. Destroy Record-Based File
   cout << endl
        << "***** In RBF Test Case 8 *****" << endl;
 
   RC rc;
-  string fileName = "unitTest";
+  string fileName = "unitTest2";
 
   // Create a file named "test8"
   rc = rbfm->createFile(fileName);
@@ -68,8 +70,8 @@ int UnitTest(RecordBasedFileManager *rbfm)
   //    prepareRecord(recordDescriptor.size(), nullsIndicator, 8, "Anteater", 25, 177.8, 6200, record, &recordSize);
   RawRecordPreparer rrp = RawRecordPreparer(recordDescriptor);
   record = rrp.setField("Anteater")
-               //    		.setField(25)
-               .setNull()
+               .setField(25)
+               //.setNull()
                .setField(177.8f)
                .setField(6200)
                .prepareRecord();
@@ -80,40 +82,24 @@ int UnitTest(RecordBasedFileManager *rbfm)
   rc = rbfm->insertRecord(fileHandle, recordDescriptor, record, rid);
   assert(rc == success && "Inserting a record should not fail.");
 
-  // Given the rid, read the record from file
-  rc = rbfm->readRecord(fileHandle, recordDescriptor, rid, returnedData);
-  assert(rc == success && "Reading a record should not fail.");
+  RBFM_ScanIterator rbfm_scan;
+  vector<string> conditionAttributes;
+  conditionAttributes.push_back("Salary");
+  int ageVal = 25;
+  rc = rbfm->scan(fileHandle, recordDescriptor, "Age", EQ_OP, &ageVal, conditionAttributes, rbfm_scan);
+  assert(rc == success && "RBFM::scan() should not fail.");
 
-  cout << endl
-       << "Returned Data:" << endl;
-  rbfm->printRecord(recordDescriptor, returnedData);
-
-  // Compare whether the two memory blocks are the same
-  if (memcmp(record, returnedData, recordSize) != 0)
+  RID ridScan;
+  void *returnedDataScan = malloc(200);
+  int salaryReturned = 0;
+  while (rbfm_scan.getNextRecord(ridScan, returnedDataScan) != RBFM_EOF)
   {
-    cout << "[FAIL] Test Case 8 Failed!" << endl
-         << endl;
-    free(record);
-    free(returnedData);
-    return -1;
+    cout << endl;
+    cout << "Returned Salary: " << *(int *)((char *)returnedDataScan + 1) << endl;
+    salaryReturned = *(int *)((char *)returnedDataScan + 1);
+    assert(salaryReturned == 6200 && "getNextRecord() should not fail.");
   }
 
-  cout << endl;
-
-  // Compare whether the string attribute is the same or not
-  char *attributeData = (char *)malloc(30);
-  memset(attributeData, 0, 30);
-  rc = rbfm->readAttribute(fileHandle, recordDescriptor, rid, "EmpName", attributeData);
-  assert(rc == success && "reading attribute should not fail");
-
-  unsigned char nullIndicatorArray = attributeData[0];
-  if (!isFieldNullTest(&nullIndicatorArray, 0))
-  {
-    assert(strcmp(attributeData + 5, "Anteater") == 0 && "Anteater attribute should be same");
-    int lengthOfString = 0;
-    memcpy(&lengthOfString, attributeData + 1, sizeof(int));
-    assert(lengthOfString == strlen("Anteater") && "Read attribute should return the length of the string");
-  }
   // Close the file "test8"
   rc = rbfm->closeFile(fileHandle);
   assert(rc == success && "Closing the file should not fail.");
@@ -127,7 +113,11 @@ int UnitTest(RecordBasedFileManager *rbfm)
 
   free(record);
   free(returnedData);
-  return -1;
+
+  cout << "RBF Test Case 8 Finished! The result will be examined." << endl
+       << endl;
+
+  return 0;
 }
 
 int main()
