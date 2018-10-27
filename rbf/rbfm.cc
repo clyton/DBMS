@@ -864,6 +864,7 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
 
   Record record = Record(recordDescriptor, recordData);
   char *attributeValue = record.getAttributeValue(attributeName);
+  AttrType attributeType = record.getAttributeType(attributeName);
 
   // Add a one byte null indicator array always for read record
   unsigned char *nullIndicatorArray = (unsigned char *)malloc(1);
@@ -873,7 +874,13 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
     makeFieldNull(nullIndicatorArray, 0);
   }
   memcpy(data, nullIndicatorArray, 1);
-  memcpy((char *)data + 1, attributeValue, strlen(attributeValue));
+  int offset=1;
+  if (attributeType == TypeVarChar){
+	  int strlength = strlen(attributeValue);
+	  memcpy((char*)data + offset, &strlength, sizeof(int));
+	  offset += sizeof(int);
+  }
+  memcpy((char *)data + offset, attributeValue, strlen(attributeValue));
 
   free(pageData);
   free(recordData);

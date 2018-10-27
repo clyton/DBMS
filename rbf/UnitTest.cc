@@ -98,14 +98,18 @@ int UnitTest(RecordBasedFileManager *rbfm) {
     cout << endl;
 
     // Compare whether the string attribute is the same or not
-    char *attributeData = (char *) malloc(10);
+    char *attributeData = (char *) malloc(30);
+    memset(attributeData, 0 , 30);
     rc = rbfm-> readAttribute(fileHandle, recordDescriptor, rid, "EmpName", attributeData);
     assert(rc == success && "reading attribute should not fail");
 
     unsigned char nullIndicatorArray = attributeData[0];
-    if (!isFieldNullTest(&nullIndicatorArray, 0))
-		assert(strcmp(attributeData + 1, "Anteater") == 0 && "Anteater attribute should be same");
-
+    if (!isFieldNullTest(&nullIndicatorArray, 0)){
+		assert(strcmp(attributeData + 5, "Anteater") == 0 && "Anteater attribute should be same");
+		int lengthOfString = 0;
+		memcpy(&lengthOfString, attributeData + 1, sizeof(int));
+		assert(lengthOfString == strlen("Anteater") && "Read attribute should return the length of the string");
+    }
     // Close the file "test8"
     rc = rbfm->closeFile(fileHandle);
     assert(rc == success && "Closing the file should not fail.");
