@@ -1245,8 +1245,8 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
       if (rid.pageNum >= numberOfPages - 1)
       {
         isEOF = RBFM_EOF;
-        nextRID.pageNum = 0;
-        nextRID.slotNum = 0;
+        rid.pageNum = 0;
+        rid.slotNum = 0;
         return 0;
       }
       else
@@ -1256,8 +1256,10 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
       }
     }
     else
+    {
       rid.slotNum++;
-
+    }
+    nextRID = rid;
     free(pageData);
   }
 
@@ -1266,7 +1268,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     r_slot numberOfFields = 0;
     memcpy(&numberOfFields, (char *)recordData, sizeof(numberOfFields));
     r_slot *fieldPointers = new r_slot[numberOfFields];
-    memcpy(&fieldPointers,
+    memcpy(fieldPointers,
            (char *)recordData + sizeof(numberOfFields) + sizeof(char) + sizeof(RID),
            sizeof(r_slot) * numberOfFields);
     int nullFieldsIndicatorLength = ceil(numberOfFields / 8.0);
