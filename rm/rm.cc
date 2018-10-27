@@ -342,7 +342,24 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
 
 RC RelationManager::updateTuple(const string &tableName, const void *data, const RID &rid)
 {
-  return -1;
+  if (isSystemTable(tableName))
+    return -1;
+
+  FileHandle fileHandle;
+  if (rbfm->openFile(tableName, fileHandle) != 0)
+    return -1;
+
+  vector<Attribute> attrs;
+  if (getAttributes(tableName, attrs) != 0)
+    return -1;
+
+  if (rbfm->updateRecord(fileHandle, attrs, data, rid) != 0)
+    return -1;
+
+  if (rbfm->closeFile(fileHandle) != 0)
+    return -1;
+
+  return success;
 }
 
 RC RelationManager::readTuple(const string &tableName, const RID &rid, void *data)
