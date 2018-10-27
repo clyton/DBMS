@@ -1231,32 +1231,31 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
     {
       hitFound = true;
-      cout << rid.slotNum;
     }
-    else
+
+    char *pageData = (char *)malloc(PAGE_SIZE);
+    fileHandle->readPage(rid.pageNum, pageData);
+    PageRecordInfo pri;
+    getPageRecordInfo(pri, pageData);
+    if (rid.slotNum + 1 > pri.numberOfSlots)
     {
-      rid.slotNum++;
-      char *pageData = (char *)malloc(PAGE_SIZE);
-      fileHandle->readPage(rid.pageNum, pageData);
-      PageRecordInfo pri;
-      getPageRecordInfo(pri, pageData);
-      if (pri.numberOfSlots < rid.slotNum)
+      unsigned numberOfPages = fileHandle->getNumberOfPages();
+      if (rid.pageNum >= numberOfPages - 1)
       {
-        unsigned numberOfPages = fileHandle->getNumberOfPages();
-        if (rid.pageNum >= numberOfPages - 1)
-        {
-          isEOF = RBFM_EOF;
-          nextRID.pageNum = rid.pageNum;
-          nextRID.slotNum = rid.slotNum;
-          return 0;
-        }
-        else
-        {
-          rid.pageNum++;
-          rid.slotNum = 0;
-        }
+        isEOF = RBFM_EOF;
+        nextRID.pageNum = 0;
+        nextRID.slotNum = 0;
+        return 0;
+      }
+      else
+      {
+        rid.pageNum++;
+        rid.slotNum = 0;
       }
     }
+    else
+      rid.slotNum++;
+
     free(pageData);
   }
 
@@ -1307,8 +1306,6 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     memcpy((char *)data, attrNullIndicatorArray, attrNullFieldsIndicatorLength);
   }
 
-  nextRID.pageNum = rid.pageNum;
-  nextRID.slotNum = rid.slotNum + 1;
   free(recordData);
   return 0;
 }
