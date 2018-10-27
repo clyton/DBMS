@@ -1229,13 +1229,16 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     memcpy(recordData, pageData + slot.offset, slot.length);
     Record record = Record(recordDescriptor, (char *)recordData);
 
-    char *attributeValue;
-    attributeValue = record.getAttributeValue(conditionAttribute);
-
-    AttrType conditionAttributeType = record.getAttributeType(conditionAttribute);
-    if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
+    if (!(record.isTombstone() || slot.offset == USHRT_MAX))
     {
-      hitFound = true;
+      char *attributeValue;
+      attributeValue = record.getAttributeValue(conditionAttribute);
+
+      AttrType conditionAttributeType = record.getAttributeType(conditionAttribute);
+      if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
+      {
+        hitFound = true;
+      }
     }
 
     PageRecordInfo pri;
