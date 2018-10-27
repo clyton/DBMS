@@ -1024,6 +1024,7 @@ char *Record::getAttributeValue(r_slot fieldNumber)
   }
   else
   {
+    attributeValue = (char *)malloc(4);
     memcpy(attributeValue, recordData + fieldStartPointer, 4);
   }
   return attributeValue;
@@ -1065,18 +1066,19 @@ RBFM_ScanIterator::RBFM_ScanIterator()
 bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const void *value, CompOp compOp)
 {
   //Removing 1 byte of nullIndicator from value
-  unsigned char *valueNullIndicator = (unsigned char *)malloc(1);
-  memcpy(valueNullIndicator, value, 1);
-  bool isValueNull = isFieldNull(valueNullIndicator, 0);
+  // unsigned char *valueNullIndicator = (unsigned char *)malloc(1);
+  // memcpy(valueNullIndicator, value, 1);
+  // bool isValueNull = isFieldNull(valueNullIndicator, 0);
 
-  if (!isValueNull)
+  if (value != NULL)
   {
-    unsigned valueLength = strlen((char *)value + 1);
-    char *conditionValue = (char *)malloc(valueLength);
-    memcpy(conditionValue, (char *)value + 1, valueLength);
-
     if (conditionAttributeType == TypeVarChar)
     {
+      unsigned valueLength = 0;
+      memcpy(&valueLength, value, 4);
+      char *conditionValue = (char *)malloc(valueLength);
+      memcpy(conditionValue, (char *)value + 4, valueLength);
+
       switch (compOp)
       {
       case EQ_OP:
@@ -1107,11 +1109,12 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
         return true;
       }
     }
-    else if (conditionAttributeType == TypeInt)
+    if (conditionAttributeType == TypeInt)
     {
-      int attrValue = atoi(attributeValue);
+      int attrValue = 0;
+      memcpy(&attrValue, attributeValue, sizeof(int));
       int compValue = 0;
-      memcpy(&compValue, conditionValue, sizeof(int));
+      memcpy(&compValue, value, sizeof(int));
       switch (compOp)
       {
       case EQ_OP:
@@ -1145,9 +1148,10 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
     }
     else if (conditionAttributeType == TypeReal)
     {
-      float attrValue = strtof(attributeValue, 0);
+      float attrValue = 0.0;
+      memcpy(&attrValue, attributeValue, sizeof(float));
       float compValue = 0.0;
-      memcpy(&compValue, conditionValue, sizeof(float));
+      memcpy(&compValue, value, sizeof(float));
       switch (compOp)
       {
       case EQ_OP:
@@ -1180,7 +1184,7 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
       }
     }
   }
-  else
+  else //TODO: Check how to handle this
   {
     switch (compOp)
     {

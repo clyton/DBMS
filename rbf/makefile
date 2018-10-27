@@ -1,6 +1,6 @@
 include ../makefile.inc
 
-all: librbf.a rbftest1 rbftest2 rbftest3 rbftest4 rbftest5 rbftest6 rbftest7 rbftest8 rbftest8b rbftest9 rbftest10 rbftest11 rbftest12 rbftest_update rbftest_delete UnitTest
+all: librbf.a rbftest1 rbftest2 rbftest3 rbftest4 rbftest5 rbftest6 rbftest7 rbftest8 rbftest8b rbftest9 rbftest10 rbftest11 rbftest12 rbftest_update rbftest_delete UnitTest UnitTest2
 
 # c file dependencies
 pfm.o: pfm.h
@@ -26,6 +26,7 @@ rbftest12.o: pfm.h rbfm.h
 rbftest_update.o: pfm.h rbfm.h
 rbftest_delete.o: pfm.h rbfm.h
 UnitTest.o: pfm.h rbfm.h
+UnitTest2.o: pfm.h rbfm.h
 
 # binary dependencies
 rbftest1: rbftest1.o librbf.a $(CODEROOT)/rbf/librbf.a
@@ -44,6 +45,7 @@ rbftest12: rbftest12.o librbf.a $(CODEROOT)/rbf/librbf.a
 rbftest_update: rbftest_update.o librbf.a $(CODEROOT)/rbf/librbf.a
 rbftest_delete: rbftest_delete.o librbf.a $(CODEROOT)/rbf/librbf.a
 UnitTest: UnitTest.o librbf.a $(CODEROOT)/rbf/librbf.a
+UnitTest2: UnitTest2.o librbf.a $(CODEROOT)/rbf/librbf.a
 
 # dependencies to compile used libraries
 .PHONY: $(CODEROOT)/rbf/librbf.a
@@ -52,4 +54,4 @@ $(CODEROOT)/rbf/librbf.a:
 
 .PHONY: clean
 clean:
-	-rm rbftest1 rbftest2 rbftest3 rbftest4 rbftest5 rbftest6 rbftest7 rbftest8 rbftest8b rbftest9 rbftest10 rbftest11 rbftest12 rbftest_delete rbftest_update unitTest *.a *.o *~
+	-rm rbftest1 rbftest2 rbftest3 rbftest4 rbftest5 rbftest6 rbftest7 rbftest8 rbftest8b rbftest9 rbftest10 rbftest11 rbftest12 rbftest_delete rbftest_update unitTest unitTest2 *.a *.o *~
