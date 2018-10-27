@@ -227,17 +227,82 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
 
 RC RelationManager::deleteTable(const string &tableName)
 {
+
   return -1;
+}
+
+int RelationManager::getTableIdByName(const string &tableName)
+{
+  RM_ScanIterator rmsi;
+  vector<string> tableAttribute;
+  tableAttribute.push_back("table-id");
+  scan("Tables", "table-name", EQ_OP, &tableName, tableAttribute, rmsi);
+  RID rid;
+  void *tableIdData = malloc(5);                   // size of int + 1 byte null indicator
+  rmsi.getNextTuple(rid, tableIdData);             //output in scan iterator return format
+  int tableId = *(int *)((char *)tableIdData + 1); //Assuming table id can not be null ||not checking null indicator
+  return tableId;
 }
 
 RC RelationManager::getAttributes(const string &tableName, vector<Attribute> &attrs)
 {
-  return -1;
+  int tableId = getTableIdByName(tableName);
+  RM_ScanIterator rmsi;
+  vector<string> attributeNames;
+  for (int i = 1; i < colRecordDescriptor.size() - 1; i++)
+  {
+    attributeNames.push_back(colRecordDescriptor[i].name);
+  }
+  scan(tableName, "table-id", EQ_OP, &tableId, attributeNames, rmsi);
+  RID ridScan;
+  void *attrTuple = malloc(PAGE_SIZE);
+  while (rmsi.getNextTuple(ridScan, attrTuple) != RM_EOF)
+  {
+    Attribute attr;
+    unsigned offset = 1; //null indicator for tuple //TODO: Confirm if need to check for null values
+
+    int nameLength = 0;
+    memcpy(&nameLength, (char *)attrTuple + offset, 4);
+    offset += 4;
+
+    void *name = malloc(50);
+    memcpy(name, (char *)attrTuple + offset, nameLength);
+    offset += nameLength;
+
+    attr.name = string((char *)name, nameLength);
+
+    int attrType = -1;
+    memcpy(&attrType, (char *)attrTuple + offset, 4);
+    offset += 4;
+
+    attr.type = (AttrType)attrType;
+
+    int attrLength = -1;
+    memcpy(&attrLength, (char *)attrTuple + offset, 4);
+    offset += 4;
+
+    attr.length = (AttrLength)attrLength;
+
+    attrs.push_back(attr);
+    free(name);
+  }
+  free(attrTuple);
+  return success;
+}
+
+bool isSystemTable(const string &tableName)
+{
+  if (tableName.compare("Tables") == 0 || tableName.compare("Columns"))
+    return true;
+  return false;
 }
 
 RC RelationManager::insertTuple(const string &tableName, const void *data, RID &rid)
 {
-  return -1;
+  if (isSystemTable(tableName))
+    return -1;
+
+  return success;
 }
 
 RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
@@ -271,6 +336,11 @@ RC RelationManager::scan(const string &tableName,
                          const void *value,
                          const vector<string> &attributeNames,
                          RM_ScanIterator &rm_ScanIterator)
+{
+  return -1;
+}
+
+RC RM_ScanIterator::getNextTuple(RID &rid, void *data)
 {
   return -1;
 }
