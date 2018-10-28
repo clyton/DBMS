@@ -447,7 +447,7 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
 		int offset = 1;
 		int strlength = 0;
 		memcpy(&strlength, data + offset, sizeof(int) );
-		char * attributeName = (char*)malloc(strlength + 1);
+		char * attributeName = (char*)malloc(strlength);
 		memset(attributeName, 0, strlength);
 		memcpy(attributeName, data + offset + sizeof(int), strlength);
 		offset += sizeof(int) + strlength;
@@ -476,7 +476,6 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
 		attr.length = (AttrLength)attributeLength;
 
 		recordDescriptor.push_back(attr);
-		free(attributeName);
 	}
 
 	rbfm->closeFile(fileHandle);
@@ -516,10 +515,6 @@ int RelationManager::getTableIdForTable(std::string tableName) {
 			break;
 		}
 	}
-	free(nullIndicatorArray);
-	free(value);
-	value = NULL;
-	nullIndicatorArray = NULL;
 	rbfm->closeFile(fileHandle);
 	free(data);
 	data = NULL;

@@ -627,7 +627,7 @@ RC RecordBasedFileManager::printRecord(
     {
       int length = 0;
       memcpy(&length, (char *)data + offset, sizeof(int));
-      char *content = (char *)malloc(length+1);
+      char *content = (char *)malloc(length);
       memset(content, 0, length);
       memcpy(content, (char *)data + offset + sizeof(int), length);
       offset = offset + sizeof(int) + length;
@@ -938,7 +938,6 @@ void Record::setNullIndicatorArray()
   memcpy(nullIndicatorArray,
          recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields,
          sizeOfNullIndicatorArray);
-  free(nullIndicatorArray);
 }
 
 r_slot Record::getRawRecordSize()
@@ -1027,16 +1026,16 @@ char *Record::getAttributeValue(r_slot fieldNumber)
     int lengthOfString = 0;
     memcpy(&lengthOfString, recordData + fieldStartPointer,
            sizeof(lengthOfString));
-    attributeValue = (char *)malloc(lengthOfString + 1);
-    memset(attributeValue, 0, lengthOfString + 1);
+    attributeValue = (char *)malloc(lengthOfString);
+    memset(attributeValue, 0, lengthOfString);
     memcpy(attributeValue,
            recordData + fieldStartPointer + sizeof(lengthOfString),
            lengthOfString);
   }
   else
   {
-    attributeValue = (char *)malloc(4 + 1);
-    memset(attributeValue, 0, 4 + 1);
+    attributeValue = (char *)malloc(4);
+    memset(attributeValue, 0, 4);
     memcpy(attributeValue, recordData + fieldStartPointer, 4);
   }
   return attributeValue;
@@ -1088,42 +1087,38 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
     {
       unsigned valueLength = 0;
       memcpy(&valueLength, value, 4);
-      char *conditionValue = (char *)malloc(valueLength + 1);
+      char *conditionValue = (char *)malloc(valueLength);
       memcpy(conditionValue, (char *)value + 4, valueLength);
-      bool result = false;
 
       switch (compOp)
       {
       case EQ_OP:
         if (strcmp(attributeValue, (const char *)conditionValue) == 0)
-           result = true;
+          return true;
         break;
       case LT_OP:
         if (strcmp(attributeValue, (const char *)conditionValue) < 0)
-           result = true;
+          return true;
         break;
       case LE_OP:
         if (strcmp(attributeValue, (const char *)conditionValue) <= 0)
-          result = true;
+          return true;
         break;
       case GT_OP:
         if (strcmp(attributeValue, (const char *)conditionValue) > 0)
-          result = true;
+          return true;
         break;
       case GE_OP:
         if (strcmp(attributeValue, (const char *)conditionValue) >= 0)
-          result = true;
+          return true;
         break;
       case NE_OP:
         if (strcmp(attributeValue, (const char *)conditionValue) != 0)
-          result = true;
+          return true;
         break;
       case NO_OP:
-          result = true;
+        return true;
       }
-      free(conditionValue);
-      conditionValue=NULL;
-      return result;
     }
     if (conditionAttributeType == TypeInt)
     {
@@ -1254,7 +1249,6 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
       {
         hitFound = true;
       }
-      free(attributeValue);
     }
 
     PageRecordInfo pri;
@@ -1278,7 +1272,6 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
       rid.slotNum++;
     }
     nextRID = rid;
-
   }
   free(pageData);
 
@@ -1353,8 +1346,6 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 			  memcpy((char*)data + offset, attrValue, 4);
 			  offset += 4;
 		  }
-		  free(attrValue);
-		  attrValue = NULL;
 	  }
 	  memcpy(data, nullIndicatorArray, sizeOfNullArray);
   }
