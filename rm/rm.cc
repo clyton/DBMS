@@ -281,6 +281,7 @@ int RelationManager::getTableIdByName(const string &tableName)
   void *tableIdData = malloc(5);                   // size of int + 1 byte null indicator
   rmsi.getNextTuple(rid, tableIdData);             //output in scan iterator return format
   int tableId = *(int *)((char *)tableIdData + 1); //Assuming table id can not be null ||not checking null indicator
+  free(tableIdData);
   return tableId;
 }
 
@@ -584,6 +585,8 @@ int RelationManager::getTableIdForTable(std::string tableName)
   rbfm->closeFile(fileHandle);
   free(data);
   data = NULL;
+  free(value);
+  value = NULL;
   return tableid;
 }
 
@@ -599,6 +602,6 @@ void RelationManager::readCurrentTableID()
 
   // 1 byte for null indicator array
   memcpy(&current_table_id, data + 1, sizeof(current_table_id));
-
+  free(data);
   rbfm->closeFile(fileHandle);
 }

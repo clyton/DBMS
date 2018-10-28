@@ -579,9 +579,9 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
                                       const vector<Attribute> &recordDescriptor, const RID &rid, void *data)
 {
-	RID externalRID = rid;
+  RID externalRID = rid;
 
-	RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
+  RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
   char *pageData = (char *)malloc(PAGE_SIZE);
   fileHandle.readPage(internalRID.pageNum, pageData);
 
@@ -594,14 +594,14 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
     return failure;
   }
 
-//  char isTombstone;
-//  memcpy(&isTombstone, pageData + slot.offset + 4, 1);
-//  if (isTombstone == 1)
-//  {
-//    RID newRID;
-//    memcpy(&newRID, pageData + slot.offset + 5, sizeof(newRID));
-//    return readRecord(fileHandle, recordDescriptor, newRID, data);
-//  }
+  //  char isTombstone;
+  //  memcpy(&isTombstone, pageData + slot.offset + 4, 1);
+  //  if (isTombstone == 1)
+  //  {
+  //    RID newRID;
+  //    memcpy(&newRID, pageData + slot.offset + 5, sizeof(newRID));
+  //    return readRecord(fileHandle, recordDescriptor, newRID, data);
+  //  }
   // cout << "Record Directory : Number of records : " << pri.numberOfRecords <<". Free Space : " << pri.freeSpacePos << endl;
   r_slot recordMetaDataLength = getRecordMetaDataSize(recordDescriptor);
   memcpy(data, pageData + slot.offset + recordMetaDataLength,
@@ -658,9 +658,9 @@ RC RecordBasedFileManager::printRecord(
 RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
                                         const vector<Attribute> &recordDescriptor, const RID &rid)
 {
-	RID externalRID = rid;
+  RID externalRID = rid;
 
-	RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
+  RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
 
   PageNum pageNum = internalRID.pageNum;
 
@@ -721,9 +721,9 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
                                         const vector<Attribute> &recordDescriptor, const void *data,
                                         const RID &rid)
 {
-	RID externalRID = rid;
+  RID externalRID = rid;
 
-	RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
+  RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
 
   // Get the page where the record is present
   int pageNum = internalRID.pageNum;
@@ -735,8 +735,9 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
   getSlotForRID(pageData, internalRID, slot);
 
   // If the record has been deleted return failure
-  if(slot.offset == USHRT_MAX){
-	  return failure;
+  if (slot.offset == USHRT_MAX)
+  {
+    return failure;
   }
 
   //get page record info
@@ -885,11 +886,12 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
     makeFieldNull(nullIndicatorArray, 0);
   }
   memcpy(data, nullIndicatorArray, 1);
-  int offset=1;
-  if (attributeType == TypeVarChar){
-	  int strlength = strlen(attributeValue);
-	  memcpy((char*)data + offset, &strlength, sizeof(int));
-	  offset += sizeof(int);
+  int offset = 1;
+  if (attributeType == TypeVarChar)
+  {
+    int strlength = strlen(attributeValue);
+    memcpy((char *)data + offset, &strlength, sizeof(int));
+    offset += sizeof(int);
   }
   memcpy((char *)data + offset, attributeValue, strlen(attributeValue));
 
@@ -928,7 +930,7 @@ void Record::setInputData()
   r_slot sizeOfInputData = getRawRecordSize();
   inputData = (char *)malloc(sizeOfInputData);
   memcpy(inputData,
-         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) +  sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields, sizeOfInputData);
+         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields, sizeOfInputData);
 }
 
 void Record::setNullIndicatorArray()
@@ -1343,7 +1345,7 @@ RawRecordPreparer::RawRecordPreparer(
 {
   this->recordDescriptor = recordDescriptor;
   nullIndicatorArraySize = ceil(recordDescriptor.size() / 8.0);
-  nullIndicatorArray = (unsigned char *) malloc( sizeof(unsigned char) * nullIndicatorArraySize );
+  nullIndicatorArray = (unsigned char *)malloc(sizeof(unsigned char) * nullIndicatorArraySize);
   memset(nullIndicatorArray, 0, nullIndicatorArraySize);
   for (Attribute atr : recordDescriptor)
   {
@@ -1528,7 +1530,7 @@ void RawRecordPreparer::resetCounters()
 
   // set it as the constructor initializes the values
   nullIndicatorArraySize = ceil(recordDescriptor.size() / 8.0);
-  nullIndicatorArray = (unsigned char *)malloc( sizeof(unsigned char) * nullIndicatorArraySize );
+  nullIndicatorArray = (unsigned char *)malloc(sizeof(unsigned char) * nullIndicatorArraySize);
   memset(nullIndicatorArray, 0, nullIndicatorArraySize);
   for (Attribute atr : recordDescriptor)
   {
@@ -1543,33 +1545,40 @@ void RawRecordPreparer::resetCounters()
  * @param externalRID : The rid given by the user
  * @return the internal RID where the record is actually stored
  */
-RID RecordBasedFileManager::getInternalRID(const vector<Attribute>& recordDesc, FileHandle& fileHandle, const RID& externalRID) {
-	char* recordInInternalFormat = readRecordInInternalFormat(fileHandle, externalRID);
-	// record has been deleted. Return the original RID
-	if (recordInInternalFormat == NULL){
-		return externalRID;
-	}
-	Record record = Record(recordDesc, recordInInternalFormat);
+RID RecordBasedFileManager::getInternalRID(const vector<Attribute> &recordDesc, FileHandle &fileHandle, const RID &externalRID)
+{
+  char *recordInInternalFormat = readRecordInInternalFormat(fileHandle, externalRID);
+  // record has been deleted. Return the original RID
+  if (recordInInternalFormat == NULL)
+  {
+    return externalRID;
+  }
+  Record record = Record(recordDesc, recordInInternalFormat);
 
-	if (record.isTombstone()){
-		RID internalRID = record.getTombstoneRID();
-		return getInternalRID(recordDesc, fileHandle, internalRID);
-	}
-	else{
-		free(recordInInternalFormat);
-		return externalRID;
-	}
+  if (record.isTombstone())
+  {
+    RID internalRID = record.getTombstoneRID();
+    return getInternalRID(recordDesc, fileHandle, internalRID);
+  }
+  else
+  {
+    free(recordInInternalFormat);
+    return externalRID;
+  }
 }
 
-RID Record::getTombstoneRID() {
-	if(isTombstone()){
-		return tombstoneRID;
-	}
-	else{
-		cerr << "Record::getTombstoneRID() : Trying to read tombstone RID for a record that is not a tombstone" << endl;
-		cerr << "Exiting" << endl;
-		exit(1);
-	}
+RID Record::getTombstoneRID()
+{
+  if (isTombstone())
+  {
+    return tombstoneRID;
+  }
+  else
+  {
+    cerr << "Record::getTombstoneRID() : Trying to read tombstone RID for a record that is not a tombstone" << endl;
+    cerr << "Exiting" << endl;
+    exit(1);
+  }
 }
 /**
  * This method will not resolve the RID to internal RID.
@@ -1577,27 +1586,27 @@ RID Record::getTombstoneRID() {
  * @param rid
  * @return
  */
-char* RecordBasedFileManager::readRecordInInternalFormat(FileHandle& fileHandle, const RID& rid){
+char *RecordBasedFileManager::readRecordInInternalFormat(FileHandle &fileHandle, const RID &rid)
+{
 
-	char* pageData = (char*) malloc(PAGE_SIZE);
-	fileHandle.readPage(rid.pageNum, pageData);
+  char *pageData = (char *)malloc(PAGE_SIZE);
+  fileHandle.readPage(rid.pageNum, pageData);
 
-	SlotDirectory slot;
-	getSlotForRID(pageData, rid, slot);
+  SlotDirectory slot;
+  getSlotForRID(pageData, rid, slot);
 
-	/**
+  /**
 	 * if record is deleted
 	 */
-	if (slot.offset == USHRT_MAX){
-		return NULL;
-	}
+  if (slot.offset == USHRT_MAX)
+  {
+    return NULL;
+  }
 
-	char* internalRecordData = (char*) malloc(slot.length);
+  char *internalRecordData = (char *)malloc(slot.length);
 
-	memcpy(internalRecordData, pageData + slot.offset, slot.length);
+  memcpy(internalRecordData, pageData + slot.offset, slot.length);
 
-	free(pageData);
-	return internalRecordData;
-
+  free(pageData);
+  return internalRecordData;
 }
-
