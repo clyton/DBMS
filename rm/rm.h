@@ -11,15 +11,26 @@ using namespace std;
 
 # define RM_EOF (-1)  // end of a scan operator
 
+class RelationManager;
 // RM_ScanIterator is an iteratr to go through tuples
 class RM_ScanIterator {
 public:
-  RM_ScanIterator() {};
-  ~RM_ScanIterator() {};
+  RM_ScanIterator();
+  ~RM_ScanIterator();
 
   // "data" follows the same format as RelationManager::insertTuple()
-  RC getNextTuple(RID &rid, void *data) { return RM_EOF; };
-  RC close() { return -1; };
+  RC getNextTuple(RID &rid, void *data);
+  RC close();
+  string tableName;
+  string conditionAttribute;
+  CompOp compOp;
+  const void *value;
+  const vector<string> *attributeNames;
+  vector<Attribute> recordDescriptor;
+  RBFM_ScanIterator rbfm_ScanIterator;
+  RelationManager* rm;
+  FileHandle* fileHandle;
+  RecordBasedFileManager *rbfm = RecordBasedFileManager::instance();
 };
 
 
@@ -62,6 +73,8 @@ public:
       const vector<string> &attributeNames, // a list of projected attributes
       RM_ScanIterator &rm_ScanIterator);
 
+  void persistCurrentTableId();
+
 // Extra credit work (10 points)
 public:
   RC addAttribute(const string &tableName, const Attribute &attr);
@@ -77,14 +90,22 @@ private:
   RecordBasedFileManager *rbfm;
 	const string columnCatalog = "Columns.tbl";
 	const string tableCatalog = "Tables.tbl";
+	const string currentTableIDFile = "CurrentTableID.tbl";
 	int current_table_id=3;
-
 // Describe schema of Tables catalog table
 	vector<Attribute> tblRecordDescriptor;
 
 // Describe schema for Columns catalog table
 // Columns(table-id:int, column-name:varchar(50), column-type:int, column-length:int, column-position:int)
 	vector<Attribute> colRecordDescriptor;
+
+	vector<Attribute> tableIdRecordDescriptor;
+
+	vector<Attribute> currentTableIDRecordDescriptor;
+
+	RC getRecordDescriptorForTable(const string tableName, vector<Attribute>& recordDescriptor);
+	int getTableIdForTable(string tableName);
+	void readCurrentTableID();
 };
 
 #endif
