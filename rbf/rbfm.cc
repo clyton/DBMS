@@ -1230,11 +1230,13 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
   rid = nextRID;
   bool hitFound = false;
   void *recordData = (char *)malloc(PAGE_SIZE);
-
+  char *pageData = (char *)malloc(PAGE_SIZE);
+  fileHandle->readPage(rid.pageNum, pageData);
+  Record *record = NULL;
   while (!hitFound && isEOF != -1)
   {
-    char *pageData = (char *)malloc(PAGE_SIZE);
-    fileHandle->readPage(rid.pageNum, pageData);
+    delete record;
+
     SlotDirectory slot;
     getSlotForRID(pageData, rid, slot);
 
@@ -1279,9 +1281,8 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
       rid.slotNum++;
     }
     nextRID = rid;
-    free(pageData);
   }
-
+  free(pageData);
   if (hitFound)
   {
     r_slot numberOfFields = 0;
