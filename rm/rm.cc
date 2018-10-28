@@ -292,7 +292,7 @@ RC RelationManager::getAttributes(const string &tableName, vector<Attribute> &at
 
 bool isSystemTable(const string &tableName)
 {
-  if (tableName.compare("Tables") == 0 || tableName.compare("Columns"))
+  if (tableName.compare("Tables") == 0 || tableName.compare("Columns") == 0)
     return true;
   return false;
 }
