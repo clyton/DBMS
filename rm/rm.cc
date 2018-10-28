@@ -285,7 +285,7 @@ RC RelationManager::deleteTable(const string &tableName)
   if (rbfm->openFile(tableCatalog, fileHandle) != 0) //TODO: Confirm is .tbl is required
     return -1;
 
-  if (rbfm->deleteRecord(fileHandle, tableIdRecordDescriptor, tableIdRID) != 0)
+  if (rbfm->deleteRecord(fileHandle, tblRecordDescriptor, tableIdRID) != 0)
     return -1;
 
   if (rbfm->closeFile(fileHandle) != 0)
