@@ -1263,6 +1263,8 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
         isEOF = RBFM_EOF;
         rid.pageNum = 0;
         rid.slotNum = 0;
+        nextRID = rid;
+        free(pageData);
         return 0;
       }
       else
