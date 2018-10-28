@@ -461,7 +461,8 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
 		offset += sizeof(int);
 
 
-		attr.name = attributeName;
+		attr.name.assign(attributeName, (unsigned)strlength);
+//		attr.name = attributeName;
 		switch(attributeType){
 		case TypeInt:
 			attr.type = TypeInt;
@@ -487,12 +488,15 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
 int RelationManager::getTableIdForTable(std::string tableName) {
 	FileHandle fileHandle;
 	rbfm->openFile(tableCatalog, fileHandle);
+
 	const string& conditionAttribute = "table-name";
 	CompOp compOp = EQ_OP;
 	char* value = (char*)malloc(4 + tableName.length());
+
 	int valueLength = tableName.length();
 	memcpy(value, &valueLength, 4);
 	memcpy(value + 4, tableName.c_str(), tableName.length());
+
 	RBFM_ScanIterator rbfm_ScanIterator;
 	vector<string> attributeNames;
 	attributeNames.push_back("table-id");
@@ -511,6 +515,7 @@ int RelationManager::getTableIdForTable(std::string tableName) {
 			break;
 		}
 		else{
+			// get table id
 			memcpy(&tableid, (char*)data+1, sizeof(tableid));
 			break;
 		}

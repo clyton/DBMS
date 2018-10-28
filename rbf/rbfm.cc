@@ -886,11 +886,15 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
   memcpy(data, nullIndicatorArray, 1);
   int offset=1;
   if (attributeType == TypeVarChar){
-	  int strlength = strlen(attributeValue);
-	  memcpy((char*)data + offset, &strlength, sizeof(int));
-	  offset += sizeof(int);
+	  int strlength;
+	  memcpy(&strlength, attributeValue, 4);
+
+	  memcpy((char*)data + offset, attributeValue, sizeof(int) + strlength);
+	  offset += sizeof(int) + strlength;
   }
-  memcpy((char *)data + offset, attributeValue, strlen(attributeValue));
+  else{
+	  memcpy((char *)data + offset, attributeValue, 4);
+  }
 
   free(attributeValue);
   free(pageData);
@@ -992,6 +996,13 @@ r_slot Record::getRecordSize()
   return getRawRecordSize() + getRecordMetaDataSize(recordDescriptor);
 }
 
+/**
+ * The return Format is
+ * VarChar ->   |4 byte length info| varCharData|
+ * Int/Float -> |4 bytes data |
+ * @param attributeName
+ * @return
+ */
 char *Record::getAttributeValue(const string &attributeName)
 {
   r_slot fieldPointerIndex = 0;
@@ -1014,6 +1025,13 @@ bool Record::isTombstone()
   return (tombstoneIndicator == 1);
 }
 
+/**
+ * The return Format is
+ * VarChar ->   |4 byte length info| varCharData|
+ * Int/Float -> |4 bytes data |
+ * @param fieldNumber
+ * @return
+ */
 char *Record::getAttributeValue(r_slot fieldNumber)
 {
   if (isFieldNull(fieldNumber))
@@ -1028,9 +1046,12 @@ char *Record::getAttributeValue(r_slot fieldNumber)
     int lengthOfString = 0;
     memcpy(&lengthOfString, recordData + fieldStartPointer,
            sizeof(lengthOfString));
-    attributeValue = (char *)malloc(lengthOfString);
-    memset(attributeValue, 0, lengthOfString);
+    attributeValue = (char *)malloc(4 + lengthOfString);
+    memset(attributeValue, 0, 4 + lengthOfString);
+    // copy the length of the varchar also
     memcpy(attributeValue,
+           recordData + fieldStartPointer, 4);
+    memcpy(attributeValue + 4,
            recordData + fieldStartPointer + sizeof(lengthOfString),
            lengthOfString);
   }
@@ -1087,40 +1108,51 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
   {
     if (conditionAttributeType == TypeVarChar)
     {
-      unsigned valueLength = 0;
+      int valueLength = 0;
       memcpy(&valueLength, value, 4);
-      char *conditionValue = (char *)malloc(valueLength);
+      char *conditionValue = (char *)malloc(valueLength + 1);
       memcpy(conditionValue, (char *)value + 4, valueLength);
 
+      int attributeLength = 0;
+      memcpy(&attributeLength, attributeValue, 4);
+      char * attributeRealValue = (char*) malloc(attributeLength + 1);
+      memcpy(attributeRealValue, attributeValue + 4, attributeLength);
+
+      bool result = false;
       switch (compOp)
       {
       case EQ_OP:
-        if (strcmp(attributeValue, (const char *)conditionValue) == 0)
-          return true;
+        if (strcmp(attributeRealValue, conditionValue) == 0)
+        	result = true;
         break;
       case LT_OP:
-        if (strcmp(attributeValue, (const char *)conditionValue) < 0)
-          return true;
+        if (strcmp(attributeRealValue, conditionValue) < 0)
+        	result = true;
         break;
       case LE_OP:
-        if (strcmp(attributeValue, (const char *)conditionValue) <= 0)
-          return true;
+        if (strcmp(attributeRealValue, conditionValue) <= 0)
+        	result = true;
         break;
       case GT_OP:
-        if (strcmp(attributeValue, (const char *)conditionValue) > 0)
-          return true;
+        if (strcmp(attributeRealValue, conditionValue) > 0)
+        	result = true;
         break;
       case GE_OP:
-        if (strcmp(attributeValue, (const char *)conditionValue) >= 0)
-          return true;
+        if (strcmp(attributeRealValue, conditionValue) >= 0)
+        	result = true;
         break;
       case NE_OP:
-        if (strcmp(attributeValue, (const char *)conditionValue) != 0)
-          return true;
+        if (strcmp(attributeRealValue, conditionValue) != 0)
+        	result = true;
         break;
       case NO_OP:
-        return true;
+    	  result = true;
       }
+      free(conditionValue);
+      free(attributeRealValue);
+      conditionValue=NULL;
+      attributeValue=NULL;
+      return result;
     }
     if (conditionAttributeType == TypeInt)
     {
@@ -1340,9 +1372,10 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 			  continue;
 		  }
 		  else if(attrType == TypeVarChar){
-			 int lengthOfString = strlen(attrValue);
+			 int lengthOfString = 0;
+			 memcpy(&lengthOfString, attrValue, 4);
 			 memcpy((char*)data + offset, &lengthOfString, sizeof(int));
-			 memcpy((char*)data + offset + sizeof(int), attrValue, lengthOfString);
+			 memcpy((char*)data + offset + sizeof(int), attrValue + 4, lengthOfString);
 			 offset += sizeof(int) + lengthOfString;
 		  }
 		  else{
