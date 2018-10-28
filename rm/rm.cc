@@ -244,8 +244,9 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
   // insert tuples in column catalog
   FileHandle colFileHandle;
   rbfm->openFile(columnCatalog, colFileHandle);
+  int atrSize = attrs.size();
   RawRecordPreparer colRecordPrp = RawRecordPreparer(colRecordDescriptor);
-  char *colCatalogRecord;
+  char *colCatalogRecord = (char *)malloc(PAGE_SIZE);
   int colPosition = 1;
   for (Attribute attr : attrs)
   {
@@ -261,7 +262,7 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
 
   current_table_id++;
   persistCurrentTableId();
-
+  free(colCatalogRecord);
   return success;
 }
 
@@ -500,15 +501,13 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
   attributeNames.push_back("column-length");
   RBFM_ScanIterator rbfm_ScanIterator;
   rbfm->scan(fileHandle, colRecordDescriptor, conditionAttribute,
-             compOp, (void *)&value, attributeNames, rbfm_ScanIterator);
+             compOp, &value, attributeNames, rbfm_ScanIterator);
 
   RID rid;
-  int isEOF = 0;
   char *data = (char *)malloc(PAGE_SIZE); // max record size
 
-  while (isEOF != RBFM_EOF)
+  while (rbfm_ScanIterator.getNextRecord(rid, data) != RM_EOF)
   {
-    isEOF = rbfm_ScanIterator.getNextRecord(rid, data);
     Attribute attr;
     // | 1 NIA | 4 bytes varlen| varchar | 4 varlen | varchar | 4 byte int|
     int offset = 1;

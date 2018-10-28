@@ -1231,7 +1231,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
   bool hitFound = false;
   void *recordData = (char *)malloc(PAGE_SIZE);
 
-  while (!hitFound)
+  while (!hitFound && isEOF != -1)
   {
     char *pageData = (char *)malloc(PAGE_SIZE);
     fileHandle->readPage(rid.pageNum, pageData);
@@ -1243,14 +1243,19 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 
     if (!(record.isTombstone() || slot.offset == USHRT_MAX))
     {
-      char *attributeValue;
+      char *attributeValue = (char *)malloc(PAGE_SIZE);
       attributeValue = record.getAttributeValue(conditionAttribute);
-
       AttrType conditionAttributeType = record.getAttributeType(conditionAttribute);
+      int condAttrVal = (int)conditionAttributeType;
       if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
       {
+        cout << conditionAttribute << endl;
+        cout << condAttrVal << endl;
+        cout << attributeValue << endl;
+        cout << value << endl;
         hitFound = true;
       }
+      free(attributeValue);
     }
 
     PageRecordInfo pri;
@@ -1346,6 +1351,7 @@ RawRecordPreparer::RawRecordPreparer(
     const vector<Attribute> &recordDescriptor)
 {
   this->recordDescriptor = recordDescriptor;
+  int recSize = recordDescriptor.size();
   nullIndicatorArraySize = ceil(recordDescriptor.size() / 8.0);
   nullIndicatorArray = (unsigned char *)malloc(sizeof(unsigned char) * nullIndicatorArraySize);
   memset(nullIndicatorArray, 0, nullIndicatorArraySize);
