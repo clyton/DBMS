@@ -212,6 +212,7 @@ public:
   //		recordData = NULL;
   //	}
 
+  ~Record();
   r_slot getNumberOfFields();
 
   char *getAttributeValue(const string &attributeName);

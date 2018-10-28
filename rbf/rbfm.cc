@@ -921,7 +921,7 @@ void Record::setTombstoneIndicatorPtr()
 
 void Record::setFieldPointers()
 {
-  fieldPointers = new r_slot[numberOfFields];
+  fieldPointers = (r_slot*)malloc( sizeof(r_slot)*numberOfFields );
   memcpy(fieldPointers,
          recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID),
          sizeof(r_slot) * numberOfFields);
@@ -1264,9 +1264,10 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
   void *recordData = (char *)malloc(PAGE_SIZE);
   char *pageData = (char *)malloc(PAGE_SIZE);
   fileHandle->readPage(rid.pageNum, pageData);
-  Record *record;
+  Record *record = NULL;
   while (!hitFound && isEOF!=RBFM_EOF)
   {
+	delete record;
     SlotDirectory slot;
     getSlotForRID(pageData, rid, slot);
 
@@ -1386,9 +1387,12 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 		  attrValue=NULL;
 	  }
 	  memcpy(data, nullIndicatorArray, sizeOfNullArray);
+	  free(nullIndicatorArray);
+	  nullIndicatorArray=NULL;
   }
 
   free(recordData);
+  recordData=NULL;
   delete record;
   return isEOF;
 }
@@ -1575,8 +1579,6 @@ RawRecordPreparer &RawRecordPreparer::setRecordDescriptor(
 RawRecordPreparer::~RawRecordPreparer()
 {
   free(nullIndicatorArray);
-  free(recordData);
-  recordData = NULL;
   nullIndicatorArray = NULL;
 }
 
@@ -1586,7 +1588,7 @@ void RawRecordPreparer::resetCounters()
   recordDataOffset = 0;
   fieldIndexCounter = 0;
   currentRecordSize = 0;
-  recordData = NULL;
+  free(nullIndicatorArray);
   nullIndicatorArray = NULL;
   nullIndicatorArraySize = 0;
 
@@ -1668,3 +1670,8 @@ char* RecordBasedFileManager::readRecordInInternalFormat(FileHandle& fileHandle,
 
 }
 
+Record::~Record() {
+	free(this->inputData);
+	free(this->fieldPointers);
+	free(this->nullIndicatorArray);
+}
