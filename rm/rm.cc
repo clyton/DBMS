@@ -266,6 +266,13 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
   return success;
 }
 
+bool isSystemTable(const string &tableName)
+{
+  if (tableName.compare("Tables") == 0 || tableName.compare("Columns") == 0)
+    return true;
+  return false;
+}
+
 RC RelationManager::deleteTable(const string &tableName)
 {
   if (isSystemTable(tableName))
@@ -326,13 +333,6 @@ int RelationManager::getTableIdByName(const string &tableName)
 RC RelationManager::getAttributes(const string &tableName, vector<Attribute> &attrs)
 {
   return getRecordDescriptorForTable(tableName, attrs);
-}
-
-bool isSystemTable(const string &tableName)
-{
-  if (tableName.compare("Tables") == 0 || tableName.compare("Columns") == 0)
-    return true;
-  return false;
 }
 
 RC RelationManager::insertTuple(const string &tableName, const void *data, RID &rid)
