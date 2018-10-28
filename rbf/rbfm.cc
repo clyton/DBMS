@@ -1249,10 +1249,6 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
       int condAttrVal = (int)conditionAttributeType;
       if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
       {
-        cout << conditionAttribute << endl;
-        cout << condAttrVal << endl;
-        cout << attributeValue << endl;
-        cout << value << endl;
         hitFound = true;
       }
       free(attributeValue);
