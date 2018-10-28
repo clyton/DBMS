@@ -26,6 +26,7 @@ typedef enum
 
 typedef unsigned AttrLength;
 
+bool isFieldNull(unsigned char *nullIndicatorArray, int fieldIndex);
 struct Attribute
 {
   string name;       // attribute name

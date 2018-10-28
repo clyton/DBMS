@@ -1343,7 +1343,7 @@ RawRecordPreparer::RawRecordPreparer(
 {
   this->recordDescriptor = recordDescriptor;
   nullIndicatorArraySize = ceil(recordDescriptor.size() / 8.0);
-  nullIndicatorArray = new unsigned char[nullIndicatorArraySize];
+  nullIndicatorArray = (unsigned char *) malloc( sizeof(unsigned char) * nullIndicatorArraySize );
   memset(nullIndicatorArray, 0, nullIndicatorArraySize);
   for (Attribute atr : recordDescriptor)
   {
@@ -1528,7 +1528,7 @@ void RawRecordPreparer::resetCounters()
 
   // set it as the constructor initializes the values
   nullIndicatorArraySize = ceil(recordDescriptor.size() / 8.0);
-  nullIndicatorArray = new unsigned char[nullIndicatorArraySize];
+  nullIndicatorArray = (unsigned char *)malloc( sizeof(unsigned char) * nullIndicatorArraySize );
   memset(nullIndicatorArray, 0, nullIndicatorArraySize);
   for (Attribute atr : recordDescriptor)
   {
