@@ -1111,11 +1111,13 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
       int valueLength = 0;
       memcpy(&valueLength, value, 4);
       char *conditionValue = (char *)malloc(valueLength + 1);
+      memset(conditionValue, 0, valueLength+1);
       memcpy(conditionValue, (char *)value + 4, valueLength);
 
       int attributeLength = 0;
       memcpy(&attributeLength, attributeValue, 4);
       char * attributeRealValue = (char*) malloc(attributeLength + 1);
+      memset(attributeRealValue, 0, attributeLength + 1);
       memcpy(attributeRealValue, attributeValue + 4, attributeLength);
 
       bool result = false;
@@ -1289,10 +1291,10 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 
     PageRecordInfo pri;
     getPageRecordInfo(pri, pageData);
-    if (rid.slotNum + 1 > pri.numberOfSlots)
+    if (rid.slotNum + 1 >= pri.numberOfSlots)
     {
       unsigned numberOfPages = fileHandle->getNumberOfPages();
-      if (rid.pageNum >= numberOfPages - 1)
+      if (rid.pageNum + 1 >= numberOfPages )
       {
         isEOF = RBFM_EOF;
       }
@@ -1394,7 +1396,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
   free(recordData);
   recordData=NULL;
   delete record;
-  return isEOF;
+  return success;
 }
 
 RC RBFM_ScanIterator::close()
