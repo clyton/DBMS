@@ -306,7 +306,7 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
     return -1;
 
   FileHandle fileHandle;
-  if (rbfm->openFile(tableName, fileHandle) != 0)
+  if (rbfm->openFile(tableName + ".tbl", fileHandle) != 0)
     return -1;
 
   if (rbfm->insertRecord(fileHandle, attrs, data, rid) != 0)
@@ -324,7 +324,7 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
     return -1;
 
   FileHandle fileHandle;
-  if (rbfm->openFile(tableName, fileHandle) != 0)
+  if (rbfm->openFile(tableName + ".tbl", fileHandle) != 0)
     return -1;
 
   vector<Attribute> attrs;
@@ -346,7 +346,7 @@ RC RelationManager::updateTuple(const string &tableName, const void *data, const
     return -1;
 
   FileHandle fileHandle;
-  if (rbfm->openFile(tableName, fileHandle) != 0)
+  if (rbfm->openFile(tableName + ".tbl", fileHandle) != 0)
     return -1;
 
   vector<Attribute> attrs;
@@ -365,7 +365,7 @@ RC RelationManager::updateTuple(const string &tableName, const void *data, const
 RC RelationManager::readTuple(const string &tableName, const RID &rid, void *data)
 {
   FileHandle fileHandle;
-  if (rbfm->openFile(tableName, fileHandle) != 0)
+  if (rbfm->openFile(tableName + ".tbl", fileHandle) != 0)
     return -1;
 
   vector<Attribute> attrs;
