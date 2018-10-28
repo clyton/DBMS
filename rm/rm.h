@@ -105,7 +105,7 @@ private:
   vector<Attribute> currentTableIDRecordDescriptor;
 
   RC getRecordDescriptorForTable(const string tableName, vector<Attribute> &recordDescriptor);
-  int getTableIdForTable(string tableName);
+  int getTableIdForTable(string tableName, RID &rid);
   void readCurrentTableID();
 };
 

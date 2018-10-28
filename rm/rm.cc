@@ -268,8 +268,45 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
 
 RC RelationManager::deleteTable(const string &tableName)
 {
+  if (isSystemTable(tableName))
+    return -1;
 
-  return -1;
+  RID tableIdRID;
+  const int tableId = getTableIdForTable(tableName, tableIdRID);
+
+  FileHandle fileHandle;
+
+  if (rbfm->openFile(tableCatalog, fileHandle) != 0) //TODO: Confirm is .tbl is required
+    return -1;
+
+  if (rbfm->deleteRecord(fileHandle, tableIdRecordDescriptor, tableIdRID) != 0)
+    return -1;
+
+  if (rbfm->closeFile(fileHandle) != 0)
+    return -1;
+
+  vector<string> attrNames;
+  attrNames.push_back("table-id");
+
+  RBFM_ScanIterator rbfmsi;
+
+  rbfm->scan(fileHandle, colRecordDescriptor, "table-id", EQ_OP, &tableIdRID, attrNames, rbfmsi);
+
+  void *buffer = malloc(PAGE_SIZE);
+  RID rid;
+  while (rbfmsi.getNextRecord(rid, buffer) != RBFM_EOF)
+  {
+    if (rbfm->deleteRecord(fileHandle, colRecordDescriptor, rid) != 0)
+      return -1;
+  }
+
+  if (rbfm->closeFile(fileHandle) != 0)
+    return -1;
+
+  if (rbfm->destroyFile(tableName + ".tbl") != 0)
+    return -1;
+
+  return success;
 }
 
 int RelationManager::getTableIdByName(const string &tableName)
@@ -391,7 +428,7 @@ RC RelationManager::printTuple(const vector<Attribute> &attrs, const void *data)
 RC RelationManager::readAttribute(const string &tableName, const RID &rid, const string &attributeName, void *data)
 {
   FileHandle fileHandle;
-  if (rbfm->openFile(tableName, fileHandle) != 0)
+  if (rbfm->openFile(tableName + ".tbl", fileHandle) != 0)
     return -1;
 
   vector<Attribute> attrs;
@@ -488,7 +525,8 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
   rbfm->openFile(columnCatalog, fileHandle);
   string conditionAttribute = "table-id";
   CompOp compOp = EQ_OP;
-  const int value = getTableIdForTable(tableName);
+  RID tableIdRID;
+  const int value = getTableIdForTable(tableName, tableIdRID);
 
   if (value == 0)
   {
@@ -548,7 +586,7 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
   return success;
 }
 
-int RelationManager::getTableIdForTable(std::string tableName)
+int RelationManager::getTableIdForTable(std::string tableName, RID &rid)
 {
   FileHandle fileHandle;
   rbfm->openFile(tableCatalog, fileHandle);
@@ -565,7 +603,7 @@ int RelationManager::getTableIdForTable(std::string tableName)
              (void *)value, attributeNames, rbfm_ScanIterator);
 
   int tableid = 0;
-  RID rid = {0, 0};
+  rid = {0, 0};
   void *data = malloc(10);
   unsigned char *nullIndicatorArray = (unsigned char *)malloc(1);
   while (rbfm_ScanIterator.getNextRecord(rid, data) != RBFM_EOF)
