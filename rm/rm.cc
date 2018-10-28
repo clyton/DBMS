@@ -543,6 +543,7 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
     recordDescriptor.push_back(attr);
     free(data);
     data = NULL;
+    free(attributeName);
   }
 
   rbfm->closeFile(fileHandle);
