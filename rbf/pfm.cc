@@ -1,4 +1,5 @@
-#include "pfm.h"
+#include <bits/basic_file.h>
+#include <rbf/pfm.h>
 #include <stddef.h>
 #include <unistd.h>
 #include <iostream>
@@ -144,6 +145,7 @@ RC PagedFileManager::closeFile(FileHandle &fileHandle) {
 	} else {
 		return -1;
 	}
+	delete file;
 	fileHandle.setFile(NULL);
 }
 

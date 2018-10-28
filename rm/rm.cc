@@ -268,6 +268,7 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
 
 RC RelationManager::deleteTable(const string &tableName)
 {
+
   return -1;
 }
 
@@ -333,7 +334,18 @@ RC RelationManager::printTuple(const vector<Attribute> &attrs, const void *data)
 
 RC RelationManager::readAttribute(const string &tableName, const RID &rid, const string &attributeName, void *data)
 {
-  return -1;
+	FileHandle fileHandle;
+	string fileName = tableName + ".tbl";
+
+	vector<Attribute> recordDescriptor ;
+	getRecordDescriptorForTable(tableName, recordDescriptor);
+
+	if (rbfm->openFile(fileName, fileHandle) == failure)
+		return failure;
+
+	RC status = rbfm->readAttribute(fileHandle, recordDescriptor, rid, attributeName, data);
+	rbfm->closeFile(fileHandle);
+	return status;
 }
 
 RC RelationManager::scan(const string &tableName,
@@ -428,13 +440,15 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
 
 	RID rid;
 	char *data = (char*) malloc(PAGE_SIZE); // max record size
+	memset(data, 0, PAGE_SIZE);
 	while (rbfm_ScanIterator.getNextRecord(rid, data) != RBFM_EOF){
 		Attribute attr;
 		// | 1 NIA | 4 bytes varlen| varchar | 4 varlen | varchar | 4 byte int|
 		int offset = 1;
 		int strlength = 0;
 		memcpy(&strlength, data + offset, sizeof(int) );
-		char * attributeName = (char*)malloc(strlength);
+		char * attributeName = (char*)malloc(strlength + 1);
+		memset(attributeName, 0, strlength);
 		memcpy(attributeName, data + offset + sizeof(int), strlength);
 		offset += sizeof(int) + strlength;
 
@@ -462,6 +476,7 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
 		attr.length = (AttrLength)attributeLength;
 
 		recordDescriptor.push_back(attr);
+		free(attributeName);
 	}
 
 	rbfm->closeFile(fileHandle);
@@ -501,6 +516,10 @@ int RelationManager::getTableIdForTable(std::string tableName) {
 			break;
 		}
 	}
+	free(nullIndicatorArray);
+	free(value);
+	value = NULL;
+	nullIndicatorArray = NULL;
 	rbfm->closeFile(fileHandle);
 	free(data);
 	data = NULL;
