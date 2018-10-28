@@ -504,9 +504,10 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
 
   RID rid;
   int isEOF = 0;
+  char *data = (char *)malloc(PAGE_SIZE); // max record size
+
   while (isEOF != RBFM_EOF)
   {
-    char *data = (char *)malloc(PAGE_SIZE); // max record size
     isEOF = rbfm_ScanIterator.getNextRecord(rid, data);
     Attribute attr;
     // | 1 NIA | 4 bytes varlen| varchar | 4 varlen | varchar | 4 byte int|
@@ -539,13 +540,11 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
       break;
     }
     attr.length = (AttrLength)attributeLength;
-
     recordDescriptor.push_back(attr);
-    free(data);
-    data = NULL;
     free(attributeName);
   }
-
+  free(data);
+  data = NULL;
   rbfm->closeFile(fileHandle);
   return success;
 }
