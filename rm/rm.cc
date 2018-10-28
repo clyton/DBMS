@@ -503,9 +503,11 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
              compOp, (void *)&value, attributeNames, rbfm_ScanIterator);
 
   RID rid;
-  char *data = (char *)malloc(PAGE_SIZE); // max record size
-  while (rbfm_ScanIterator.getNextRecord(rid, data) != RBFM_EOF)
+  int isEOF = 0;
+  while (isEOF != RBFM_EOF)
   {
+    char *data = (char *)malloc(PAGE_SIZE); // max record size
+    isEOF = rbfm_ScanIterator.getNextRecord(rid, data);
     Attribute attr;
     // | 1 NIA | 4 bytes varlen| varchar | 4 varlen | varchar | 4 byte int|
     int offset = 1;
@@ -539,11 +541,11 @@ RC RelationManager::getRecordDescriptorForTable(const string tableName, vector<A
     attr.length = (AttrLength)attributeLength;
 
     recordDescriptor.push_back(attr);
+    free(data);
+    data = NULL;
   }
 
   rbfm->closeFile(fileHandle);
-  free(data);
-  data = NULL;
   return success;
 }
 
