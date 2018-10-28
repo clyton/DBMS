@@ -632,8 +632,9 @@ RC RecordBasedFileManager::printRecord(
       memcpy(content, (char *)data + offset + sizeof(int), length);
       offset = offset + sizeof(int) + length;
 //      content[length] = '\0';
-      printf("%s : %s ", attribute.name.c_str(), content);
+      printf("%s : %.*s ", attribute.name.c_str(), length, content);
       free(content);
+      content=NULL;
     }
     else if (attribute.type == TypeInt)
     {
@@ -891,6 +892,7 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
   }
   memcpy((char *)data + offset, attributeValue, strlen(attributeValue));
 
+  free(attributeValue);
   free(pageData);
   free(recordData);
   return success;
@@ -1249,6 +1251,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
       {
         hitFound = true;
       }
+      free(attributeValue);
     }
 
     PageRecordInfo pri;
@@ -1346,6 +1349,8 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 			  memcpy((char*)data + offset, attrValue, 4);
 			  offset += 4;
 		  }
+		  free(attrValue);
+		  attrValue=NULL;
 	  }
 	  memcpy(data, nullIndicatorArray, sizeOfNullArray);
   }
