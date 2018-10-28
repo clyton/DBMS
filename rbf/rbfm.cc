@@ -1105,7 +1105,10 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
   // bool isValueNull = isFieldNull(valueNullIndicator, 0);
 
   if (value != NULL)
-  {
+{
+	if (attributeValue == NULL){
+		return false;
+	}
     if (conditionAttributeType == TypeVarChar)
     {
       int valueLength = 0;
@@ -1113,6 +1116,7 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
       char *conditionValue = (char *)malloc(valueLength + 1);
       memset(conditionValue, 0, valueLength+1);
       memcpy(conditionValue, (char *)value + 4, valueLength);
+
 
       int attributeLength = 0;
       memcpy(&attributeLength, attributeValue, 4);
@@ -1231,7 +1235,7 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
       }
     }
   }
-  else //TODO: Check how to handle this
+  else //if value is null
   {
     switch (compOp)
     {
@@ -1247,6 +1251,8 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
       else
         return false;
       break;
+    case NO_OP:
+    	return true;
     default:
       return false;
       break;
@@ -1269,26 +1275,27 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
   Record *record = NULL;
   while (!hitFound && isEOF!=RBFM_EOF)
   {
-	delete record;
     SlotDirectory slot;
     getSlotForRID(pageData, rid, slot);
-
-    memcpy(recordData, pageData + slot.offset, slot.length);
-    record = new Record(recordDescriptor, (char *)recordData);
-
-    if (!(record->isTombstone() || slot.offset == USHRT_MAX))
+    if (slot.offset != USHRT_MAX)
     {
-      char *attributeValue;
-      attributeValue = record->getAttributeValue(conditionAttribute);
+    	memcpy(recordData, pageData + slot.offset, slot.length);
+		delete record;
+    	record = new Record(recordDescriptor, (char *)recordData);
 
-      AttrType conditionAttributeType = record->getAttributeType(conditionAttribute);
-      if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
-      {
-        hitFound = true;
-      }
-      free(attributeValue);
+    	if (!(record->isTombstone() ))
+    	{
+    		char *attributeValue;
+    		attributeValue = record->getAttributeValue(conditionAttribute);
+
+    		AttrType conditionAttributeType = record->getAttributeType(conditionAttribute);
+    		if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
+    		{
+    			hitFound = true;
+    		}
+    		free(attributeValue);
+    	}
     }
-
     PageRecordInfo pri;
     getPageRecordInfo(pri, pageData);
     if (rid.slotNum + 1 >= pri.numberOfSlots)

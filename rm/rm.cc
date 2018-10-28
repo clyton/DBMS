@@ -240,7 +240,7 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
   rbfm->openFile(tableCatalog, fileHandle);
   RawRecordPreparer tblRecordPrp = RawRecordPreparer(tblRecordDescriptor);
   RID rid;
-  char *tableCatalogRecord = tblRecordPrp.setField(SYSTEM_TABLE)
+  char *tableCatalogRecord = tblRecordPrp.setField(USER_TABLE)
                                  .setField(current_table_id)
                                  .setField(tableName)
                                  .setField(fileName)
@@ -280,6 +280,7 @@ RC RelationManager::deleteTable(const string &tableName)
   RID tableIdRID;
   const int tableId = getTableIdForTable(tableName, tableIdRID);
 
+  // delete tables from table catalog
   FileHandle fileHandle;
 
   if (rbfm->openFile(tableCatalog, fileHandle) != 0) //TODO: Confirm is .tbl is required
@@ -296,20 +297,28 @@ RC RelationManager::deleteTable(const string &tableName)
 
   RBFM_ScanIterator rbfmsi;
 
-  rbfm->scan(fileHandle, colRecordDescriptor, "table-id", EQ_OP, &tableIdRID, attrNames, rbfmsi);
+  // delete records from column catalog
+  FileHandle colFileHandle;
+  if (rbfm->openFile(columnCatalog, colFileHandle) != 0) //TODO: Confirm is .tbl is required
+    return -1;
+
+  rbfm->scan(colFileHandle, colRecordDescriptor, "table-id", EQ_OP, &tableIdRID, attrNames, rbfmsi);
 
   void *buffer = malloc(PAGE_SIZE);
   RID rid;
   while (rbfmsi.getNextRecord(rid, buffer) != RBFM_EOF)
   {
-    if (rbfm->deleteRecord(fileHandle, colRecordDescriptor, rid) != 0)
+    if (rbfm->deleteRecord(colFileHandle, colRecordDescriptor, rid) != 0)
       return -1;
   }
 
-  if (rbfm->closeFile(fileHandle) != 0)
+  if (rbfm->closeFile(colFileHandle) != 0)
     return -1;
 
-  if (rbfm->destroyFile(tableName + ".tbl") != 0)
+
+  // remove the file to destroy
+  string filename = tableName + ".tbl";
+  if (rbfm->destroyFile(filename) != 0)
     return -1;
 
   return success;
@@ -323,6 +332,8 @@ RC RelationManager::getAttributes(const string &tableName, vector<Attribute> &at
 
 RC RelationManager::insertTuple(const string &tableName, const void *data, RID &rid)
 {
+	if (isSystemTable(tableName))
+		return false;
   FileHandle fileHandle;
   string fileName = tableName + ".tbl";
   vector<Attribute> recordDescriptor;
@@ -335,6 +346,8 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
 
 RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
 {
+	if (isSystemTable(tableName))
+		return false;
   FileHandle fileHandle;
   string fileName = tableName + ".tbl";
   vector<Attribute> recordDescriptor;
@@ -347,6 +360,8 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
 
 RC RelationManager::updateTuple(const string &tableName, const void *data, const RID &rid)
 {
+	if (isSystemTable(tableName))
+		return false;
   FileHandle fileHandle;
   string fileName = tableName + ".tbl";
   vector<Attribute> recordDescriptor;
