@@ -1267,7 +1267,7 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
 RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 {
   if (isEOF == RBFM_EOF)
-    return -1;
+    return RBFM_EOF;
 
   RID tempRID = rid;
   tempRID = nextRID;
@@ -1404,10 +1404,18 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 	  nullIndicatorArray=NULL;
   }
 
+  if (!hitFound && isEOF==RBFM_EOF){
   free(recordData);
   recordData=NULL;
   delete record;
-  return isEOF;
+	 return isEOF;
+  }
+  else{
+  free(recordData);
+  recordData=NULL;
+  delete record;
+  return success;
+  }
 }
 
 RC RBFM_ScanIterator::close()
