@@ -37,55 +37,75 @@ int UnitTest(RecordBasedFileManager *rbfm)
        << "***** In RBF Test Case 8 *****" << endl;
 
   RC rc;
-  string fileName = "Columns.tbl";
+  string maxIdFile = "../CurrentTableID.tbl";
+  string colFileName = "../Columns.tbl";
+  string tableFileName = "../Tables.tbl";
+
+  vector<Attribute> colRecordDesc;
+  vector<Attribute> tblRecordDescriptor;
+  vector<Attribute> maxIdRecordDesc;
+
+  maxIdRecordDesc.push_back((Attribute){"table-id", TypeInt, 4});
+
+  tblRecordDescriptor.push_back((Attribute){"table-type", TypeInt, 4});
+  tblRecordDescriptor.push_back((Attribute){"table-id", TypeInt, 4});
+  tblRecordDescriptor.push_back((Attribute){"table-name", TypeVarChar, 50});
+  tblRecordDescriptor.push_back((Attribute){"file-name", TypeVarChar, 50});
+
+  colRecordDesc.push_back((Attribute){"table-id", TypeInt, 4});
+  colRecordDesc.push_back((Attribute){"column-name", TypeVarChar, 50});
+  colRecordDesc.push_back((Attribute){"column-type", TypeInt, 4});
+  colRecordDesc.push_back((Attribute){"column-length", TypeInt, 4});
+  colRecordDesc.push_back((Attribute){"column-position", TypeInt, 4});
 
   // Open the file "test8"
-  FileHandle fileHandle;
-  rc = rbfm->openFile(fileName, fileHandle);
+  FileHandle colFileHandle;
+  FileHandle tblFileHandle;
+  FileHandle maxIdFileHandle;
+
+  void *returnedData;
+  RID rid;
+
+  rc = rbfm->openFile(maxIdFile, maxIdFileHandle);
+  assert(rc == success && "Opening the file should not fail.");
+  rid = {0,0};
+  returnedData = malloc(100);
+  rc = rbfm->readRecord(maxIdFileHandle, maxIdRecordDesc, rid, returnedData);
+  rbfm->printRecord(maxIdRecordDesc, returnedData);
+  int maxTableId;
+  memcpy(&maxTableId, (char*)returnedData+1, 4);
+  rbfm->closeFile(maxIdFileHandle);
+  cout << endl ;
+
+ cout << "===============Tables.tbl========================" << endl;
+
+  rc = rbfm->openFile(tableFileName, tblFileHandle);
+  assert(rc == success && "Opening the file should not fail.");
+  rid = {0,0};
+  for (int i=1; i<maxTableId; i++){
+  rc = rbfm->readRecord(tblFileHandle, tblRecordDescriptor, rid, returnedData);
+  if (rc == success){
+  rbfm->printRecord(tblRecordDescriptor, returnedData);
+  }
+  rid.slotNum++; // this will break if more than one page
+  cout << endl ;
+  }
+  rbfm->closeFile(maxIdFileHandle);
+
+ cout << "===============columns.tbl========================" << endl;
+  rc = rbfm->openFile(colFileName, colFileHandle);
   assert(rc == success && "Opening the file should not fail.");
 
-  int recordSize = 0;
-//  void *record = NULL;
-  void *returnedData = malloc(100);
+  rid = {0,0};
+  for (int i=1; i<maxTableId * colRecordDesc.size(); i++){
+  rc = rbfm->readRecord(colFileHandle, colRecordDesc, rid, returnedData);
+//  assert(rc == success && "Reading a record should not fail.");
 
-  vector<Attribute> recordDescriptor;
-  recordDescriptor.push_back((Attribute){"table-id", TypeInt, 4});
-  recordDescriptor.push_back((Attribute){"column-name", TypeVarChar, 50});
-  recordDescriptor.push_back((Attribute){"column-type", TypeInt, 4});
-  recordDescriptor.push_back((Attribute){"column-length", TypeInt, 4});
-  recordDescriptor.push_back((Attribute){"column-position", TypeInt, 4});
-  //    // Initialize a NULL field indicator
-  //    int nullFieldsIndicatorActualSize = getActualByteForNullsIndicator(recordDescriptor.size());
-  //    unsigned char *nullsIndicator = (unsigned char *) malloc(nullFieldsIndicatorActualSize);
-  //    memset(nullsIndicator, 0, nullFieldsIndicatorActualSize);
-
-  // Insert a record into a file and print the record
-  //    prepareRecord(recordDescriptor.size(), nullsIndicator, 8, "Anteater", 25, 177.8, 6200, record, &recordSize);
-//  RawRecordPreparer rrp = RawRecordPreparer(recordDescriptor);
-//  record = rrp.setField("Anteater")
-//               //    		.setField(25)
-//               .setNull()
-//               .setField(177.8f)
-//               .setField(6200)
-//               .prepareRecord();
-//  cout << endl
-//       << "Inserting Data:" << endl;
-//  rbfm->printRecord(recordDescriptor, record);
-//
-//  rc = rbfm->insertRecord(fileHandle, recordDescriptor, record, rid);
-//  assert(rc == success && "Inserting a record should not fail.");
-//
-  // Given the rid, read the record from file
-  RID rid = {0,0};
-  while(rid.slotNum != 30){
-  rc = rbfm->readRecord(fileHandle, recordDescriptor, rid, returnedData);
-  assert(rc == success && "Reading a record should not fail.");
-
-  cout << endl
-       << "Returned Data:" << endl;
-  rbfm->printRecord(recordDescriptor, returnedData);
+  if (rc == success){
+  rbfm->printRecord(colRecordDesc, returnedData);
+  }
   cout << endl;
-  rid.slotNum ++;
+  rid.slotNum ++; // this will break if more than one page
   }
 
   // Compare whether the two memory blocks are the same
@@ -115,7 +135,7 @@ int UnitTest(RecordBasedFileManager *rbfm)
 //    assert(lengthOfString == strlen("Anteater") && "Read attribute should return the length of the string");
 //  }
   // Close the file "test8"
-  rc = rbfm->closeFile(fileHandle);
+  rc = rbfm->closeFile(colFileHandle);
   assert(rc == success && "Closing the file should not fail.");
 
 //  // Destroy the file

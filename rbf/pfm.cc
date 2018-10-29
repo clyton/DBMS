@@ -1,3 +1,4 @@
+#include <bits/basic_file.h>
 #include <rbf/pfm.h>
 #include <stddef.h>
 #include <unistd.h>
@@ -215,6 +216,18 @@ RC FileHandle::appendPage(const void *data) {
 	}
 	appendPageCounter = appendPageCounter + 1;
 	numberOfPages++;
+
+	FileStat currentFileStats;
+	currentFileStats.numberOfPages = numberOfPages;
+	currentFileStats.readPageCounter = readPageCounter;
+	currentFileStats.writePageCounter = writePageCounter;
+	currentFileStats.appendPageCounter = appendPageCounter;
+
+	// update the file stat section in the file
+	updateFileStat(currentFileStats);
+
+	// Flush the changes and close the file
+	int flushSuccess = fflush(file);
 	return 0;
 }
 
@@ -244,4 +257,10 @@ void FileHandle::loadFileStats() {
 	writePageCounter = fileStat.writePageCounter;
 	appendPageCounter = fileStat.appendPageCounter;
 // The file read counter will advance after the file stats
+}
+
+void FileHandle::updateFileStat(FileStat& fileStat) {
+	// Move to beginning of file
+	fseek(file, 0, SEEK_SET);
+	fwrite(&fileStat, sizeof(struct FileStat), 1, file);
 }

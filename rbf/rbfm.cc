@@ -78,7 +78,7 @@ r_slot getLengthOfRecordAndTransformRecord(const void *data,
   r_slot *fieldPointers = new r_slot[numberOfFields];
 
   // Add 2 byte of space to store number of fields
-  recordSizeInBytes += SLOT_SIZE;
+  recordSizeInBytes += sizeof(r_slot);
 
   /**
 	 * Add the space needed for 1 byte char to express if the record is a tombstone or not
@@ -1267,16 +1267,17 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
   if (isEOF == RBFM_EOF)
     return -1;
 
-  rid = nextRID;
+  RID tempRID = rid;
+  tempRID = nextRID;
   bool hitFound = false;
   void *recordData = (char *)malloc(PAGE_SIZE);
   char *pageData = (char *)malloc(PAGE_SIZE);
-  fileHandle->readPage(rid.pageNum, pageData);
+  fileHandle->readPage(tempRID.pageNum, pageData);
   Record *record = NULL;
   while (!hitFound && isEOF!=RBFM_EOF)
   {
     SlotDirectory slot;
-    getSlotForRID(pageData, rid, slot);
+    getSlotForRID(pageData, tempRID, slot);
     if (slot.offset != USHRT_MAX)
     {
     	memcpy(recordData, pageData + slot.offset, slot.length);
@@ -1292,31 +1293,32 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     		if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
     		{
     			hitFound = true;
+    			rid = tempRID;
     		}
     		free(attributeValue);
     	}
     }
     PageRecordInfo pri;
     getPageRecordInfo(pri, pageData);
-    if (rid.slotNum + 1 >= pri.numberOfSlots)
+    if (tempRID.slotNum + 1 >= pri.numberOfSlots)
     {
       unsigned numberOfPages = fileHandle->getNumberOfPages();
-      if (rid.pageNum + 1 >= numberOfPages )
+      if (tempRID.pageNum + 1 >= numberOfPages )
       {
         isEOF = RBFM_EOF;
       }
       else
       {
-        rid.pageNum++;
-        rid.slotNum = 0;
-        fileHandle->readPage(rid.pageNum, pageData);
+        tempRID.pageNum++;
+        tempRID.slotNum = 0;
+        fileHandle->readPage(tempRID.pageNum, pageData);
       }
     }
     else
     {
-      rid.slotNum++;
+      tempRID.slotNum++;
     }
-    nextRID = rid;
+    nextRID = tempRID;
   }
   free(pageData);
 
@@ -1403,7 +1405,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
   free(recordData);
   recordData=NULL;
   delete record;
-  return success;
+  return isEOF;
 }
 
 RC RBFM_ScanIterator::close()

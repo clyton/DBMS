@@ -59,6 +59,7 @@ public:
 	FILE* getFile();
 	RC setFile(FILE *file);
 	void loadFileStats();
+	void updateFileStat(FileStat& fileStat);
 };
 
 #endif

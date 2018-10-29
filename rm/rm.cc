@@ -302,7 +302,7 @@ RC RelationManager::deleteTable(const string &tableName)
   if (rbfm->openFile(columnCatalog, colFileHandle) != 0) //TODO: Confirm is .tbl is required
     return -1;
 
-  rbfm->scan(colFileHandle, colRecordDescriptor, "table-id", EQ_OP, &tableIdRID, attrNames, rbfmsi);
+  rbfm->scan(colFileHandle, colRecordDescriptor, "table-id", EQ_OP, &tableId, attrNames, rbfmsi);
 
   void *buffer = malloc(PAGE_SIZE);
   RID rid;
@@ -337,7 +337,9 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
   FileHandle fileHandle;
   string fileName = tableName + ".tbl";
   vector<Attribute> recordDescriptor;
-  getRecordDescriptorForTable(tableName, recordDescriptor);
+  RC rc = getRecordDescriptorForTable(tableName, recordDescriptor);
+  if (rc == failure) // if the table does not exist
+	  return rc;
   rbfm->openFile(fileName, fileHandle);
   RC status = rbfm->insertRecord(fileHandle, recordDescriptor, data, rid);
   rbfm->closeFile(fileHandle);
@@ -377,7 +379,9 @@ RC RelationManager::readTuple(const string &tableName, const RID &rid, void *dat
   FileHandle fileHandle;
   string fileName = tableName + ".tbl";
   vector<Attribute> recordDescriptor;
-  getRecordDescriptorForTable(tableName, recordDescriptor);
+  int tableExists = getRecordDescriptorForTable(tableName, recordDescriptor);
+  if (tableExists == failure)
+	  return failure;
   rbfm->openFile(fileName, fileHandle);
   RC status = rbfm->readRecord(fileHandle, recordDescriptor, rid, data);
   rbfm->closeFile(fileHandle);
