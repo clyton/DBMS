@@ -289,7 +289,7 @@ RID getPageForRecordOfSize(FileHandle &fileHandle, r_slot sizeInBytes,
     fileHandle.readPage(pageNum, pageData);
     PageRecordInfo pageRecordInfo;
     getPageRecordInfo(pageRecordInfo, pageData);
-    r_slot freeSpaceAvailable = PAGE_SIZE - getRecordDirectorySize(pageRecordInfo) //slots + pageRecordInfo
+    int freeSpaceAvailable = PAGE_SIZE - getRecordDirectorySize(pageRecordInfo) //slots + pageRecordInfo
                                 - (pageRecordInfo.freeSpacePos);                   // pg occupied from top
     if (freeSpaceAvailable > sizeInBytes)
     {
@@ -521,7 +521,8 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 
   // search for a page with free space greater than the record size
 
-  char *pageRecordData = (char *)malloc(PAGE_SIZE);
+//  char *pageRecordData = (char*) ::operator new ( PAGE_SIZE );
+  char *pageRecordData = (char *) malloc(PAGE_SIZE);
   RID insertRID = getPageForRecordOfSize(fileHandle, recordSizeInBytes,
                                          pageRecordData);
 
@@ -567,6 +568,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
   record = NULL;
   //	free(nullIndicatorArray);
   free(pageRecordData);
+//  delete pageRecordData;
   pageRecordData = NULL;
 
   return 0;
@@ -742,7 +744,7 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
   PageRecordInfo pageRecordInfo;
   getPageRecordInfo(pageRecordInfo, pageData);
   //get free space in file
-  r_slot freeSpaceAvailable = PAGE_SIZE - getRecordDirectorySize(pageRecordInfo) //slots + pageRecordInfo
+  int freeSpaceAvailable = PAGE_SIZE - getRecordDirectorySize(pageRecordInfo) //slots + pageRecordInfo
                               - (pageRecordInfo.freeSpacePos);
 
   //Transform raw Data into record format
