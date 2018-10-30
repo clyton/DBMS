@@ -1060,6 +1060,7 @@ void Record::getAttributeValue(r_slot fieldNumber, char* attributeValue)
   if (isFieldNull(fieldNumber))
   {
 	  attributeValue = NULL;
+	  return;
   }
   r_slot fieldStartPointer = fieldPointers[fieldNumber];
   Attribute attributeMetaData = recordDescriptor[fieldNumber];

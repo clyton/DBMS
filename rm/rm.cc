@@ -591,6 +591,7 @@ int RelationManager::getTableIdForTable(std::string tableName, RID &rid)
   const string &conditionAttribute = "table-name";
   CompOp compOp = EQ_OP;
   char *value = (char *)malloc(4 + tableName.length());
+  memset(value,0, 4 + tableName.length());
 
   int valueLength = tableName.length();
   memcpy(value, &valueLength, 4);
@@ -605,7 +606,9 @@ int RelationManager::getTableIdForTable(std::string tableName, RID &rid)
   int tableid = 0;
   rid = {0, 0};
   void *data = malloc(10);
+  memset(data,0,10);
   unsigned char *nullIndicatorArray = (unsigned char *)malloc(1);
+  memset(nullIndicatorArray,0,1);
   while (rbfm_ScanIterator.getNextRecord(rid, data) != RBFM_EOF)
   {
     memcpy(nullIndicatorArray, data, 1);
