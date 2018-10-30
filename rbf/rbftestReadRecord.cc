@@ -37,9 +37,9 @@ int UnitTest(RecordBasedFileManager *rbfm)
        << "***** In RBF Test Case 8 *****" << endl;
 
   RC rc;
-  string maxIdFile = "../CurrentTableID.tbl";
-  string colFileName = "../Columns.tbl";
-  string tableFileName = "../Tables.tbl";
+  string maxIdFile = "CurrentTableID.tbl";
+  string colFileName = "Columns.tbl";
+  string tableFileName = "Tables.tbl";
 
   vector<Attribute> colRecordDesc;
   vector<Attribute> tblRecordDescriptor;
@@ -97,11 +97,13 @@ int UnitTest(RecordBasedFileManager *rbfm)
   assert(rc == success && "Opening the file should not fail.");
 
   rid = {0,0};
-  for (int i=1; i<maxTableId * colRecordDesc.size(); i++){
+//  for (int i=1; i<maxTableId * colRecordDesc.size(); i++){
+  while(rid.slotNum != 49){
   rc = rbfm->readRecord(colFileHandle, colRecordDesc, rid, returnedData);
 //  assert(rc == success && "Reading a record should not fail.");
 
   if (rc == success){
+//	  cout << rid.pageNum << rid.slotNum << endl;
   rbfm->printRecord(colRecordDesc, returnedData);
   }
   cout << endl;
