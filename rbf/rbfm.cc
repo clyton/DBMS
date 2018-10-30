@@ -885,6 +885,7 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
 
   Record record = Record(recordDescriptor, recordData);
   char *attributeValue = (char*)malloc(PAGE_SIZE);
+  memset(attributeValue, 0, PAGE_SIZE);
   record.getAttributeValue(attributeName, attributeValue);
   AttrType attributeType = record.getAttributeType(attributeName);
 
@@ -1066,15 +1067,14 @@ void Record::getAttributeValue(r_slot fieldNumber, char* attributeValue)
            sizeof(lengthOfString));
     // copy the length of the varchar also
     memcpy(attributeValue,
-           recordData + fieldStartPointer, 4);
-    memcpy(attributeValue + 4,
+           recordData + fieldStartPointer, sizeof(int));
+    memcpy(attributeValue + sizeof(int),
            recordData + fieldStartPointer + sizeof(lengthOfString),
            lengthOfString);
   }
   else
   {
-    memset(attributeValue, 0, 4);
-    memcpy(attributeValue, recordData + fieldStartPointer, 4);
+    memcpy(attributeValue, recordData + fieldStartPointer, sizeof(int));
   }
 }
 
@@ -1301,6 +1301,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     	if (!(record->isTombstone() ))
     	{
     		char *attributeValue = (char*) malloc(PAGE_SIZE);
+    		memset(attributeValue, 0, PAGE_SIZE);
     		record->getAttributeValue(conditionAttribute, attributeValue);
 
     		AttrType conditionAttributeType = record->getAttributeType(conditionAttribute);
