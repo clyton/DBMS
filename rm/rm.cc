@@ -422,16 +422,14 @@ RC RelationManager::scan(const string &tableName,
   rm_ScanIterator.compOp = compOp;
   rm_ScanIterator.value = value;
   rm_ScanIterator.attributeNames = &attributeNames;
-  FileHandle *fileHandleLocal = (FileHandle *)malloc(sizeof(FileHandle));
-  rbfm->openFile(tableName + ".tbl", *fileHandleLocal);
+  rbfm->openFile(tableName + ".tbl", rm_ScanIterator.fileHandle);
   vector<Attribute> recordDescriptor;
   getRecordDescriptorForTable(tableName, recordDescriptor);
   //  rbfm->scan(fileHandle, recordDescriptor,
   //		  conditionAttribute, compOp, rbfmScanner value, attributeNames,
   //		  rm_ScanIterator.rbfm_ScanIterator);
   rm_ScanIterator.recordDescriptor = recordDescriptor;
-  rm_ScanIterator.fileHandle = fileHandleLocal;
-  rbfm->scan(*fileHandleLocal, recordDescriptor,
+  rbfm->scan(rm_ScanIterator.fileHandle, recordDescriptor,
              conditionAttribute, compOp, value, attributeNames, rm_ScanIterator.rbfm_ScanIterator);
   return success;
 }
@@ -478,9 +476,12 @@ RC RM_ScanIterator::getNextTuple(RID &rid, void *data)
 
 RC RM_ScanIterator::close()
 {
-  rbfm->closeFile(*fileHandle);
-  free(fileHandle);
-  fileHandle = NULL;
+  tableName = "";
+  conditionAttribute = "";
+  compOp = NO_OP;
+  value = NULL;
+  attributeNames = NULL;
+  rbfm->closeFile(fileHandle);
   return success;
 }
 

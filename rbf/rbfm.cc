@@ -823,6 +823,11 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
         // shift record to left
         shiftRecord(pageData, ridOfRecordToShift, -(oldLength - (sizeof(r_slot) + sizeof(char) + sizeof(RID))));
       }
+      slot.length = sizeof(r_slot) + sizeof(char) + sizeof(RID);
+      updateSlotDirectory(internalRID, pageData, slot);
+      pageRecordInfo.freeSpacePos-=(oldLength - (sizeof(r_slot) + sizeof(char) + sizeof(RID)));
+      updatePageRecordInfo(pageRecordInfo, pageData);
+
     }
   }
   else if (newRecordLength == slot.length)
@@ -976,9 +981,11 @@ Record::Record(const vector<Attribute> &recordDesc,
   setNumberOfFields();
   setTombstoneIndicator();
   setTombstoneIndicatorPtr();
+  if (!isTombstone()){
   setFieldPointers();
   setInputData();
   setNullIndicatorArray();
+  }
 }
 //	~Record(){
 //		delete rawData;
@@ -1008,10 +1015,12 @@ r_slot Record::getRecordSize()
 char *Record::getAttributeValue(const string &attributeName)
 {
   r_slot fieldPointerIndex = 0;
+  bool attributeFound = false;
   for (Attribute a : recordDescriptor)
   {
     if (a.name.compare(attributeName) == 0)
     {
+      attributeFound = true;
       break;
     }
     else
@@ -1019,7 +1028,10 @@ char *Record::getAttributeValue(const string &attributeName)
       fieldPointerIndex++;
     }
   }
-  return getAttributeValue(fieldPointerIndex);
+  if (! attributeFound)
+	  return NULL;
+  else
+	  return getAttributeValue(fieldPointerIndex);
 }
 
 bool Record::isTombstone()
@@ -1643,6 +1655,7 @@ RID RecordBasedFileManager::getInternalRID(const vector<Attribute>& recordDesc, 
 
 	if (record.isTombstone()){
 		RID internalRID = record.getTombstoneRID();
+		free(recordInInternalFormat);
 		return getInternalRID(recordDesc, fileHandle, internalRID);
 	}
 	else{

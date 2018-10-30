@@ -30,7 +30,7 @@ public:
   vector<Attribute> recordDescriptor;
   RBFM_ScanIterator rbfm_ScanIterator;
   RelationManager *rm;
-  FileHandle *fileHandle;
+  FileHandle fileHandle;
   RecordBasedFileManager *rbfm = RecordBasedFileManager::instance();
 };
 
