@@ -935,6 +935,7 @@ void Record::setTombstoneIndicatorPtr()
 void Record::setFieldPointers()
 {
   fieldPointers = (r_slot*)malloc( sizeof(r_slot)*numberOfFields );
+  memset(fieldPointers,0,sizeof(r_slot)*numberOfFields);
   memcpy(fieldPointers,
          recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID),
          sizeof(r_slot) * numberOfFields);
@@ -944,6 +945,7 @@ void Record::setInputData()
 {
   r_slot sizeOfInputData = getRawRecordSize();
   inputData = (char *)malloc(sizeOfInputData);
+  memset(inputData, 0 , sizeOfInputData);
   memcpy(inputData,
          recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) +  sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields, sizeOfInputData);
 }
@@ -953,6 +955,7 @@ void Record::setNullIndicatorArray()
   r_slot sizeOfNullIndicatorArray = 0;
   sizeOfNullIndicatorArray = ceil(numberOfFields / 8.0);
   nullIndicatorArray = (unsigned char *)malloc(sizeOfNullIndicatorArray);
+  memset(nullIndicatorArray,0,sizeOfNullIndicatorArray);
 
   memcpy(nullIndicatorArray,
          recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields,
@@ -1294,6 +1297,7 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
     getSlotForRID(pageData, tempRID, slot);
     if (slot.offset != USHRT_MAX)
     {
+    	memset(recordData, 0, PAGE_SIZE);
     	memcpy(recordData, pageData + slot.offset, slot.length);
 		delete record;
     	record = new Record(recordDescriptor, (char *)recordData);
@@ -1339,60 +1343,15 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 
   if (hitFound)
   {
-//    r_slot numberOfFields = 0;
-//    memcpy(&numberOfFields, (char *)recordData, sizeof(numberOfFields));
-//    r_slot *fieldPointers = new r_slot[numberOfFields];
-//    memcpy(fieldPointers,
-//           (char *)recordData + sizeof(numberOfFields) + sizeof(char) + sizeof(RID),
-//           sizeof(r_slot) * numberOfFields);
-//    int nullFieldsIndicatorLength = ceil(numberOfFields / 8.0);
-//    unsigned char *nullIndicatorArray = (unsigned char *)malloc(nullFieldsIndicatorLength);
-//    memcpy(nullIndicatorArray, (char *)recordData + sizeof(numberOfFields) + sizeof(char) + sizeof(RID) + (numberOfFields * sizeof(fieldPointers[0])),
-//           nullFieldsIndicatorLength);
-//
-//    short attrNumberOfFields = attributeNames.size();
-//    int attrNullFieldsIndicatorLength = ceil(attrNumberOfFields / 8.0);
-//    unsigned char *attrNullIndicatorArray = (unsigned char *)malloc(attrNullFieldsIndicatorLength);
-//    memset(attrNullIndicatorArray, 0, attrNullFieldsIndicatorLength);
-//
-//    r_slot attrFieldPointerIndex = 0;
-//    r_slot recFieldPointerIndex = 0;
-//    int attrOffset = attrNullFieldsIndicatorLength;
-//    for (Attribute a : recordDescriptor)
-//    {
-//      for (string s : attributeNames)
-//      {
-//        if (a.name.compare(s) == 0)
-//        {
-//          bool isNull = isFieldNull(nullIndicatorArray, recFieldPointerIndex);
-//          if (isNull)
-//            makeFieldNull(attrNullIndicatorArray, attrFieldPointerIndex);
-//
-//          if (a.type == TypeVarChar)
-//          {
-//            int varcharLength = 0;
-//            memcpy(&varcharLength, (char *)recordData + fieldPointers[recFieldPointerIndex], 4);
-//            memcpy((char *)data + attrOffset, (char *)recordData + fieldPointers[recFieldPointerIndex], 4 + varcharLength);
-//            attrOffset += (4 + varcharLength);
-//          }
-//          else
-//          {
-//            memcpy((char *)data + attrOffset, (char *)recordData + fieldPointers[recFieldPointerIndex], 4);
-//            attrOffset += 4;
-//          }
-//          attrFieldPointerIndex++;
-//        }
-//      }
-//      recFieldPointerIndex++;
-//    }
 //    memcpy((char *)data, attrNullIndicatorArray, attrNullFieldsIndicatorLength);
-	  int sizeOfNullArray = ceil(record->getNumberOfFields()/8.0);
+	  int sizeOfNullArray = ceil(attributeNames.size()/8.0);
 	  unsigned char* nullIndicatorArray = (unsigned char*)malloc(sizeOfNullArray);
 	  memset(nullIndicatorArray, 0, sizeOfNullArray);
 	  int fieldIndex=0;
 	  int offset = sizeOfNullArray;
 	  for(string attrName: attributeNames){
 		  char * attrValue = (char*) malloc(PAGE_SIZE);
+		  memset(attrValue, 0, PAGE_SIZE);
 		  record->getAttributeValue(attrName, attrValue);
 		  AttrType attrType = record->getAttributeType(attrName);
 		  if (attrValue == NULL){
