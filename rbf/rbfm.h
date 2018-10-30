@@ -262,9 +262,10 @@ private:
 public:
   RawRecordPreparer(const vector<Attribute> &recordDescriptor);
   ~RawRecordPreparer();
-  char *prepareRecord();
+  void prepareRecord(char* recordToReturn);
   RawRecordPreparer &setField(const string &value);
   RawRecordPreparer &setField(int value);
+  RawRecordPreparer &setField(AttrLength value);
   RawRecordPreparer &setField(float value);
   RawRecordPreparer &setNull();
   RawRecordPreparer &setRecordDescriptor(const vector<Attribute> &recordDescriptor);

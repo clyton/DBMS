@@ -55,29 +55,35 @@ RC RelationManager::createCatalog()
   //  Prepare raw table record for insertion
   //	Tables (table-id:int, table-name:varchar(50), file-name:varchar(50))
   RawRecordPreparer tblCtlgPrp = RawRecordPreparer(tblRecordDescriptor);
-  char *tableCatalogRecord = tblCtlgPrp
+  char *tableCatalogRecord = (char*) malloc(PAGE_SIZE);
+  memset(tableCatalogRecord, 0, PAGE_SIZE);
+		  tblCtlgPrp
                                  .setField(SYSTEM_TABLE) //table-type
                                  .setField(1)            //table-id
                                  .setField("Tables")     //table-name
                                  .setField(tableCatalog) //file-name
-                                 .prepareRecord();
+                                 .prepareRecord(tableCatalogRecord);
 
   // insert first tableCatalog record for 'Tables' table
   RID rid;
   rbfm->insertRecord(fileHandle, tblRecordDescriptor, tableCatalogRecord, rid);
+  free(tableCatalogRecord);
   //  Prepare raw table record for insertion
   //	Tables (table-id:int, table-name:varchar(50), file-name:varchar(50))
-  char *tableCatalogRecord2 = tblCtlgPrp
+  char *tableCatalogRecord2 = (char*) malloc(PAGE_SIZE);
+  memset(tableCatalogRecord2, 0 , PAGE_SIZE);
+tblCtlgPrp
                                   .setField(SYSTEM_TABLE)  //table-type
                                   .setField(2)             //table-id
                                   .setField("Columns")     //table-name
                                   .setField(columnCatalog) //file-name
-                                  .prepareRecord();
+                                  .prepareRecord(tableCatalogRecord2);
 
   // insert second tableCatalog record for 'Tables' table
   RID rid2;
   rbfm->insertRecord(fileHandle, tblRecordDescriptor, tableCatalogRecord2, rid2);
   rbfm->closeFile(fileHandle);
+  free(tableCatalogRecord2);
 
   // Open file for columns table
   FileHandle fileHandleForCols;
@@ -96,85 +102,95 @@ RC RelationManager::createCatalog()
 
   //	 (1 , "table-id"        , TypeInt     , 4  , 1)
   RawRecordPreparer colCtlgPrp = RawRecordPreparer(colRecordDescriptor);
-  char *columnCatalogRecord = colCtlgPrp
+  char *columnCatalogRecord = (char*) malloc( PAGE_SIZE);
+  memset(columnCatalogRecord,0,PAGE_SIZE);
+colCtlgPrp
                                   .setField(1)          // table-id
                                   .setField("table-id") // column-name
                                   .setField(TypeInt)    // column-type
                                   .setField(4)          // column-length
                                   .setField(1)          // column-position
-                                  .prepareRecord();
+                                  .prepareRecord(columnCatalogRecord);
   rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
 
   //	 (1 , "table-name"      , TypeVarChar , 50 , 2)
-  columnCatalogRecord = colCtlgPrp
+  memset(columnCatalogRecord,0,PAGE_SIZE);
+ colCtlgPrp
                             .setField(1)            // table-id
                             .setField("table-name") // column-name
                             .setField(TypeVarChar)  // column-type
                             .setField(50)           // column-length
                             .setField(2)            // column-position
-                            .prepareRecord();
+                            .prepareRecord(columnCatalogRecord);
   rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
 
   //	 (1 , "file-name"       , TypeVarChar , 50 , 3)
-  columnCatalogRecord = colCtlgPrp
+	memset(columnCatalogRecord,0,PAGE_SIZE);
+   colCtlgPrp
                             .setField(1)           // table-id
                             .setField("file-name") // column-name
                             .setField(TypeVarChar) // column-type
                             .setField(50)          // column-length
                             .setField(3)           // column-position
-                            .prepareRecord();
+                            .prepareRecord(columnCatalogRecord);
   rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
 
   //	 (2 , "table-id"        , TypeInt     , 4  , 1)
-  columnCatalogRecord = colCtlgPrp
+	memset(columnCatalogRecord,0,PAGE_SIZE);
+     colCtlgPrp
                             .setField(2)          // table-id
                             .setField("table-id") // column-name
                             .setField(TypeInt)    // column-type
                             .setField(4)          // column-length
                             .setField(1)          // column-position
-                            .prepareRecord();
+                            .prepareRecord(columnCatalogRecord);
   rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
 
   //	 (2 , "column-name"     , TypeVarChar , 50 , 2)
-  columnCatalogRecord = colCtlgPrp
+	memset(columnCatalogRecord,0,PAGE_SIZE);
+   colCtlgPrp
                             .setField(2)             // table-id
                             .setField("column-name") // column-name
                             .setField(TypeVarChar)   // column-type
                             .setField(50)            // column-length
                             .setField(2)             // column-position
-                            .prepareRecord();
+                            .prepareRecord(columnCatalogRecord);
   rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
 
   //	 (2 , "column-type"     , TypeInt     , 4  , 3)
-  columnCatalogRecord = colCtlgPrp
+	memset(columnCatalogRecord,0,PAGE_SIZE);
+   colCtlgPrp
                             .setField(2)             // table-id
                             .setField("column-type") // column-name
                             .setField(TypeInt)       // column-type
                             .setField(4)             // column-length
                             .setField(3)             // column-position
-                            .prepareRecord();
+                            .prepareRecord(columnCatalogRecord);
   rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
 
   //	 (2 , "column-length"   , TypeInt     , 4  , 4)
-  columnCatalogRecord = colCtlgPrp
+	memset(columnCatalogRecord,0,PAGE_SIZE);
+   colCtlgPrp
                             .setField(2)               // table-id
                             .setField("column-length") // column-name
                             .setField(TypeInt)         // column-type
                             .setField(4)               // column-length
                             .setField(4)               // column-position
-                            .prepareRecord();
+                            .prepareRecord(columnCatalogRecord);
   rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
 
   //	 (2 , "column-position" , TypeInt     , 4  , 5)
-  columnCatalogRecord = colCtlgPrp
+	memset(columnCatalogRecord,0,PAGE_SIZE);
+   colCtlgPrp
                             .setField(2)                 // table-id
                             .setField("column-position") // column-name
                             .setField(TypeInt)           // column-type
                             .setField(4)                 // column-length
                             .setField(5)                 // column-position
-                            .prepareRecord();
+                            .prepareRecord(columnCatalogRecord);
   rbfm->insertRecord(fileHandleForCols, colRecordDescriptor, columnCatalogRecord, rid);
   rbfm->closeFile(fileHandleForCols);
+  free(columnCatalogRecord);
 
   current_table_id = 3;
   rbfm->createFile(currentTableIDFile);
@@ -182,9 +198,12 @@ RC RelationManager::createCatalog()
   rbfm->openFile(currentTableIDFile, tableIDFileHandle);
   RID tableIDRID;
   RawRecordPreparer maxIdRecordPrp = RawRecordPreparer(currentTableIDRecordDescriptor);
-  char *maxIDRecord = maxIdRecordPrp.setField(current_table_id).prepareRecord();
+  char *maxIDRecord = (char*) malloc(PAGE_SIZE);
+  memset(maxIDRecord,0,PAGE_SIZE);
+  maxIdRecordPrp.setField(current_table_id).prepareRecord(maxIDRecord);
   rbfm->insertRecord(tableIDFileHandle, currentTableIDRecordDescriptor, maxIDRecord, tableIDRID);
   rbfm->closeFile(tableIDFileHandle);
+  free(maxIDRecord);
 
   return success;
 }
@@ -195,8 +214,11 @@ void RelationManager::persistCurrentTableId()
   rbfm->openFile(currentTableIDFile, fileHandle);
   RID rid = {0, 0};
   RawRecordPreparer maxIdRecordPrp = RawRecordPreparer(currentTableIDRecordDescriptor);
-  char *maxIDRecord = maxIdRecordPrp.setField(current_table_id).prepareRecord();
+  char *maxIDRecord = (char*) malloc(PAGE_SIZE);
+  memset(maxIDRecord,0,PAGE_SIZE);
+  maxIdRecordPrp.setField(current_table_id).prepareRecord(maxIDRecord);
   rbfm->updateRecord(fileHandle, currentTableIDRecordDescriptor, maxIDRecord, rid);
+  free(maxIDRecord);
 
   rbfm->closeFile(fileHandle);
 }
@@ -240,11 +262,13 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
   rbfm->openFile(tableCatalog, fileHandle);
   RawRecordPreparer tblRecordPrp = RawRecordPreparer(tblRecordDescriptor);
   RID rid;
-  char *tableCatalogRecord = tblRecordPrp.setField(USER_TABLE)
+  char *tableCatalogRecord = (char*) malloc(PAGE_SIZE);
+  memset(tableCatalogRecord,0,PAGE_SIZE);
+  tblRecordPrp.setField(USER_TABLE)
                                  .setField(current_table_id)
                                  .setField(tableName)
                                  .setField(fileName)
-                                 .prepareRecord();
+                                 .prepareRecord(tableCatalogRecord);
   rbfm->insertRecord(fileHandle, tblRecordDescriptor, tableCatalogRecord, rid);
   rbfm->closeFile(fileHandle);
 
@@ -253,18 +277,21 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
   rbfm->openFile(columnCatalog, colFileHandle);
   RawRecordPreparer colRecordPrp = RawRecordPreparer(colRecordDescriptor);
   char *colCatalogRecord;
+  colCatalogRecord = (char*)malloc(PAGE_SIZE);
   int colPosition = 1;
   for (Attribute attr : attrs)
   {
-    colCatalogRecord = colRecordPrp
+	  memset(colCatalogRecord, 0 , PAGE_SIZE);
+    colRecordPrp
                            .setField(current_table_id)
                            .setField(attr.name)
                            .setField(attr.type)
-                           .setField((int)attr.length)
+                           .setField(attr.length)
                            .setField(colPosition++)
-                           .prepareRecord();
+                           .prepareRecord(colCatalogRecord);
     rbfm->insertRecord(colFileHandle, colRecordDescriptor, colCatalogRecord, rid);
   }
+    free(colCatalogRecord);
 
   current_table_id++;
   persistCurrentTableId();

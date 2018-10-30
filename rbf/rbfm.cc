@@ -1456,7 +1456,7 @@ RawRecordPreparer::RawRecordPreparer(
   recordDataOffset += nullIndicatorArraySize;
 }
 
-char *RawRecordPreparer::prepareRecord()
+void RawRecordPreparer::prepareRecord(char* returnRecordData)
 {
   // check if all field values have been passed
   if (fieldIndexCounter != recordDescriptor.size())
@@ -1479,11 +1479,10 @@ char *RawRecordPreparer::prepareRecord()
 //    currentRecordSize = recordDataOffset;
 //  }
   // set another pointer to recordData
-  char *returnRecordData = recordData;
+  memcpy(returnRecordData,recordData, PAGE_SIZE);
   // reset recordData and other variables so that next record can be prepared
   resetCounters();
 
-  return returnRecordData;
 }
 
 RawRecordPreparer &RawRecordPreparer::setField(const string &value)
@@ -1506,6 +1505,26 @@ RawRecordPreparer &RawRecordPreparer::setField(const string &value)
     recordDataOffset += sizeof(int);
     memcpy(recordData + recordDataOffset, value.c_str(), value.size());
     recordDataOffset += value.size();
+  }
+  fieldIndexCounter++;
+  return *this;
+}
+
+RawRecordPreparer &RawRecordPreparer::setField(AttrLength value){
+  Attribute attr = recordDescriptor[fieldIndexCounter];
+  if (attr.type != TypeInt)
+  {
+    cout << "Error in field setting : Expecting " << attr.name << " to be of type " << attr.type << " but got 'int'";
+    exit(1);
+  }
+  else if (!isValidField())
+  {
+    cout << "Field index out of bounds" << fieldIndexCounter << endl;
+  }
+  else
+  {
+    memcpy(recordData + recordDataOffset, &value, sizeof(value));
+    recordDataOffset += sizeof(value);
   }
   fieldIndexCounter++;
   return *this;
@@ -1637,7 +1656,6 @@ void RawRecordPreparer::resetCounters()
   }
   // for simplicity and avoiding realloc errors, using fixed record size
   currentRecordSize=PAGE_SIZE;
-  recordData = (char *)malloc(currentRecordSize);
   memset(recordData, 0, currentRecordSize);
   recordDataOffset += nullIndicatorArraySize;
 }
