@@ -155,8 +155,8 @@ protected:
   ~RecordBasedFileManager();
 
 private:
-  RID getInternalRID(const vector<Attribute>& recordDesc, FileHandle& fileHandle, const RID& externalRID);
-  char* readRecordInInternalFormat(FileHandle& fileHandle, const RID& rid);
+  RID getInternalRID(const vector<Attribute> &recordDesc, FileHandle &fileHandle, const RID &externalRID);
+  char *readRecordInInternalFormat(FileHandle &fileHandle, const RID &rid);
   static RecordBasedFileManager *_rbf_manager;
   PagedFileManager *pfm;
 };
@@ -186,6 +186,7 @@ private:
   r_slot *fieldPointers = NULL;
   char *inputData = NULL;
   unsigned char *nullIndicatorArray = NULL;
+  r_slot sizeOfNullIndicatorArray = 0;
 
   void setNumberOfFields();
 
@@ -214,9 +215,13 @@ public:
   ~Record();
   r_slot getNumberOfFields();
 
-  void getAttributeValue(const string &attributeName, char* attributeValue);
+  r_slot getLastFieldIndex();
 
-  void getAttributeValue(r_slot fieldNumber, char* attributeValue);
+  r_slot getFirstFieldIndex();
+
+  void getAttributeValue(const string &attributeName, char *attributeValue);
+
+  void getAttributeValue(r_slot fieldNumber, char *attributeValue);
 
   AttrType getAttributeType(const string &attributeName);
 
@@ -262,7 +267,7 @@ private:
 public:
   RawRecordPreparer(const vector<Attribute> &recordDescriptor);
   ~RawRecordPreparer();
-  void prepareRecord(char* recordToReturn);
+  void prepareRecord(char *recordToReturn);
   RawRecordPreparer &setField(const string &value);
   RawRecordPreparer &setField(int value);
   RawRecordPreparer &setField(AttrLength value);
