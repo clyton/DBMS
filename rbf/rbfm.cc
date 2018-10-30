@@ -678,6 +678,10 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
   getSlotForRID(pageData, internalRID, slotToDelete);
   r_slot lengthOfDeletedRecord = slotToDelete.length;
 
+  if (slotToDelete.offset == USHRT_MAX){
+	  return failure;
+  }
+
   // Are you deleting the last record in the page
   if (internalRID.slotNum + 1 == pri.numberOfSlots)
   {
@@ -697,6 +701,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
     updateSlotDirectory(internalRID, pageData, slotToDelete);
 
     //		pri.numberOfRecords -= 1;
+    // only update free space. deleted slot stays there
     pri.freeSpacePos -= lengthOfDeletedRecord;
     updatePageRecordInfo(pri, pageData);
 
@@ -715,7 +720,6 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
     return writeStatus;
   }
 
-  // get the slot directory
 }
 
 RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
