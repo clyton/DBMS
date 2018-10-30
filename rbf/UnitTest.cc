@@ -67,12 +67,14 @@ int UnitTest(RecordBasedFileManager *rbfm)
   // Insert a record into a file and print the record
   //    prepareRecord(recordDescriptor.size(), nullsIndicator, 8, "Anteater", 25, 177.8, 6200, record, &recordSize);
   RawRecordPreparer rrp = RawRecordPreparer(recordDescriptor);
-  record = rrp.setField("Anteater")
+
+  record = malloc(PAGE_SIZE);
+  rrp.setField("Anteater")
                //    		.setField(25)
                .setNull()
                .setField(177.8f)
                .setField(6200)
-               .prepareRecord();
+               .prepareRecord((char*)record);
   cout << endl
        << "Inserting Data:" << endl;
   rbfm->printRecord(recordDescriptor, record);

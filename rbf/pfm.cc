@@ -1,4 +1,5 @@
-#include "pfm.h"
+#include <bits/basic_file.h>
+#include <rbf/pfm.h>
 #include <stddef.h>
 #include <unistd.h>
 #include <iostream>
@@ -144,6 +145,7 @@ RC PagedFileManager::closeFile(FileHandle &fileHandle) {
 	} else {
 		return -1;
 	}
+	delete file;
 	fileHandle.setFile(NULL);
 }
 
@@ -201,6 +203,7 @@ RC FileHandle::writePage(PageNum pageNum, const void *data) {
 		// cerr << "Unknown error encountered while writing to a page" << endl;
 		return -1;
 	}
+  int success = fflush(file);
 	writePageCounter = writePageCounter + 1;
 	return 0;
 }
@@ -208,12 +211,23 @@ RC FileHandle::writePage(PageNum pageNum, const void *data) {
 RC FileHandle::appendPage(const void *data) {
 	fseek(file, PAGE_START_COUNTER + numberOfPages * PAGE_SIZE, SEEK_SET);
 	int pagesAppended = fwrite(data, PAGE_SIZE, 1, file);
+  int writeSuccess = fflush(file);
 	if (pagesAppended != 1) {
 		// cerr << "Unknown error encountered while appending page";
 		return -1;
 	}
 	appendPageCounter = appendPageCounter + 1;
 	numberOfPages++;
+
+	FileStat currentFileStats;
+	currentFileStats.numberOfPages = numberOfPages;
+	currentFileStats.readPageCounter = readPageCounter;
+	currentFileStats.writePageCounter = writePageCounter;
+	currentFileStats.appendPageCounter = appendPageCounter;
+
+	// update the file stat section in the file
+	updateFileStat(currentFileStats);
+
 	return 0;
 }
 
@@ -243,4 +257,11 @@ void FileHandle::loadFileStats() {
 	writePageCounter = fileStat.writePageCounter;
 	appendPageCounter = fileStat.appendPageCounter;
 // The file read counter will advance after the file stats
+}
+
+void FileHandle::updateFileStat(FileStat& fileStat) {
+	// Move to beginning of file
+	fseek(file, 0, SEEK_SET);
+	fwrite(&fileStat, sizeof(struct FileStat), 1, file);
+  fflush(file);
 }

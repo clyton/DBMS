@@ -26,6 +26,7 @@ typedef enum
 
 typedef unsigned AttrLength;
 
+bool isFieldNull(unsigned char *nullIndicatorArray, int fieldIndex);
 struct Attribute
 {
   string name;       // attribute name
@@ -154,8 +155,8 @@ protected:
   ~RecordBasedFileManager();
 
 private:
-  RID getInternalRID(const vector<Attribute>& recordDesc, FileHandle& fileHandle, const RID& externalRID);
-  char* readRecordInInternalFormat(FileHandle& fileHandle, const RID& rid);
+  RID getInternalRID(const vector<Attribute> &recordDesc, FileHandle &fileHandle, const RID &externalRID);
+  char *readRecordInInternalFormat(FileHandle &fileHandle, const RID &rid);
   static RecordBasedFileManager *_rbf_manager;
   PagedFileManager *pfm;
 };
@@ -179,13 +180,13 @@ private:
   vector<Attribute> recordDescriptor;
   char *recordData;
   r_slot recordSize;
-
   r_slot numberOfFields = 0;
   char tombstoneIndicator = 0;
   RID tombstoneRID;
   r_slot *fieldPointers = NULL;
   char *inputData = NULL;
   unsigned char *nullIndicatorArray = NULL;
+  r_slot sizeOfNullIndicatorArray = 0;
 
   void setNumberOfFields();
 
@@ -211,11 +212,16 @@ public:
   //		recordData = NULL;
   //	}
 
+  ~Record();
   r_slot getNumberOfFields();
 
-  char *getAttributeValue(const string &attributeName);
+  r_slot getLastFieldIndex();
 
-  char *getAttributeValue(r_slot fieldNumber);
+  r_slot getFirstFieldIndex();
+
+  void getAttributeValue(const string &attributeName, char *attributeValue);
+
+  void getAttributeValue(r_slot fieldNumber, char *attributeValue);
 
   AttrType getAttributeType(const string &attributeName);
 
@@ -261,9 +267,10 @@ private:
 public:
   RawRecordPreparer(const vector<Attribute> &recordDescriptor);
   ~RawRecordPreparer();
-  char *prepareRecord();
+  void prepareRecord(char *recordToReturn);
   RawRecordPreparer &setField(const string &value);
   RawRecordPreparer &setField(int value);
+  RawRecordPreparer &setField(AttrLength value);
   RawRecordPreparer &setField(float value);
   RawRecordPreparer &setNull();
   RawRecordPreparer &setRecordDescriptor(const vector<Attribute> &recordDescriptor);

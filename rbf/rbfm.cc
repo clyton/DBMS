@@ -1,13 +1,10 @@
 #include <rbf/rbfm.h>
-#include <type_traits>
 #include <stddef.h>
-#include <stdlib.h>
-#include <bitset>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include <cstdlib>
 
 #define SLOT_SIZE sizeof(struct SlotDirectory)
 const RC success = 0;
@@ -81,7 +78,7 @@ r_slot getLengthOfRecordAndTransformRecord(const void *data,
   r_slot *fieldPointers = new r_slot[numberOfFields];
 
   // Add 2 byte of space to store number of fields
-  recordSizeInBytes += SLOT_SIZE;
+  recordSizeInBytes += sizeof(r_slot);
 
   /**
 	 * Add the space needed for 1 byte char to express if the record is a tombstone or not
@@ -292,8 +289,8 @@ RID getPageForRecordOfSize(FileHandle &fileHandle, r_slot sizeInBytes,
     fileHandle.readPage(pageNum, pageData);
     PageRecordInfo pageRecordInfo;
     getPageRecordInfo(pageRecordInfo, pageData);
-    r_slot freeSpaceAvailable = PAGE_SIZE - getRecordDirectorySize(pageRecordInfo) //slots + pageRecordInfo
-                                - (pageRecordInfo.freeSpacePos);                   // pg occupied from top
+    int freeSpaceAvailable = PAGE_SIZE - getRecordDirectorySize(pageRecordInfo) //slots + pageRecordInfo
+                             - (pageRecordInfo.freeSpacePos);                   // pg occupied from top
     if (freeSpaceAvailable > sizeInBytes)
     {
       // Check if a slot position is empty
@@ -448,8 +445,6 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
       // cout << "Attribute " << attri << " ISNULL: data at offset " << dataOffset << " is null" << endl;
       // cout << "Attribute " << attri << " ISNULL: record offset : " << recordSizeInBytes << endl;
       // cout << "Attribute " << attri << " ISNULL: data offset : " << dataOffset << endl;
-      std::bitset<32> nullattbit(
-          1 << (nullFieldsIndicatorLength * 8 - 1 - attri));
       // cout << "Test bits " << nullattbit << endl;
       // cout << "Test" << nullIndicatorArray[attri] << endl;
       fieldPointers[attri] = USHRT_MAX;
@@ -480,6 +475,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 
   // Allocate memory for record data to write to page
   char *record = (char *)malloc(recordSizeInBytes);
+  memset(record, 0, recordSizeInBytes);
 
   // Copy no. of fields
   int recordOffset = 0;
@@ -525,7 +521,9 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 
   // search for a page with free space greater than the record size
 
+  //  char *pageRecordData = (char*) ::operator new ( PAGE_SIZE );
   char *pageRecordData = (char *)malloc(PAGE_SIZE);
+  memset(pageRecordData, 0, PAGE_SIZE);
   RID insertRID = getPageForRecordOfSize(fileHandle, recordSizeInBytes,
                                          pageRecordData);
 
@@ -571,6 +569,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
   record = NULL;
   //	free(nullIndicatorArray);
   free(pageRecordData);
+  //  delete pageRecordData;
   pageRecordData = NULL;
 
   return 0;
@@ -579,9 +578,9 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
                                       const vector<Attribute> &recordDescriptor, const RID &rid, void *data)
 {
-	RID externalRID = rid;
+  RID externalRID = rid;
 
-	RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
+  RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
   char *pageData = (char *)malloc(PAGE_SIZE);
   fileHandle.readPage(internalRID.pageNum, pageData);
 
@@ -594,14 +593,14 @@ RC RecordBasedFileManager::readRecord(FileHandle &fileHandle,
     return failure;
   }
 
-//  char isTombstone;
-//  memcpy(&isTombstone, pageData + slot.offset + 4, 1);
-//  if (isTombstone == 1)
-//  {
-//    RID newRID;
-//    memcpy(&newRID, pageData + slot.offset + 5, sizeof(newRID));
-//    return readRecord(fileHandle, recordDescriptor, newRID, data);
-//  }
+  //  char isTombstone;
+  //  memcpy(&isTombstone, pageData + slot.offset + 4, 1);
+  //  if (isTombstone == 1)
+  //  {
+  //    RID newRID;
+  //    memcpy(&newRID, pageData + slot.offset + 5, sizeof(newRID));
+  //    return readRecord(fileHandle, recordDescriptor, newRID, data);
+  //  }
   // cout << "Record Directory : Number of records : " << pri.numberOfRecords <<". Free Space : " << pri.freeSpacePos << endl;
   r_slot recordMetaDataLength = getRecordMetaDataSize(recordDescriptor);
   memcpy(data, pageData + slot.offset + recordMetaDataLength,
@@ -632,10 +631,13 @@ RC RecordBasedFileManager::printRecord(
       int length = 0;
       memcpy(&length, (char *)data + offset, sizeof(int));
       char *content = (char *)malloc(length);
+      memset(content, 0, length);
       memcpy(content, (char *)data + offset + sizeof(int), length);
       offset = offset + sizeof(int) + length;
-      printf("%s : %s ", attribute.name.c_str(), content);
+      //      content[length] = '\0';
+      printf("%s : %.*s ", attribute.name.c_str(), length, content);
       free(content);
+      content = NULL;
     }
     else if (attribute.type == TypeInt)
     {
@@ -658,14 +660,15 @@ RC RecordBasedFileManager::printRecord(
 RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
                                         const vector<Attribute> &recordDescriptor, const RID &rid)
 {
-	RID externalRID = rid;
+  RID externalRID = rid;
 
-	RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
+  RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
 
   PageNum pageNum = internalRID.pageNum;
 
   // read page from which to delete record
   char *pageData = (char *)malloc(PAGE_SIZE);
+  memset(pageData,0,PAGE_SIZE);
   fileHandle.readPage(pageNum, pageData);
 
   // get the record directory information
@@ -677,8 +680,14 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
   getSlotForRID(pageData, internalRID, slotToDelete);
   r_slot lengthOfDeletedRecord = slotToDelete.length;
 
+  if (slotToDelete.offset == USHRT_MAX)
+  {
+	  free(pageData);
+    return failure;
+  }
+
   // Are you deleting the last record in the page
-  if (internalRID.slotNum + 1 == pri.numberOfSlots)
+  if (slotToDelete.offset + slotToDelete.length == pri.freeSpacePos)
   {
     slotToDelete.offset = USHRT_MAX;
     updateSlotDirectory(internalRID, pageData, slotToDelete);
@@ -687,43 +696,59 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
     updatePageRecordInfo(pri, pageData);
 
     RC writeStatus = fileHandle.writePage(pageNum, pageData);
+    free(pageData);
     return writeStatus;
   }
   else
   {
-    // for each consecutive record
-    slotToDelete.offset = USHRT_MAX;
-    updateSlotDirectory(internalRID, pageData, slotToDelete);
 
-    //		pri.numberOfRecords -= 1;
-    pri.freeSpacePos -= lengthOfDeletedRecord;
-    updatePageRecordInfo(pri, pageData);
 
-    for (r_slot islot = internalRID.slotNum + 1; islot < pri.numberOfSlots;
+    memmove(pageData + slotToDelete.offset, pageData + slotToDelete.offset + slotToDelete.length,
+    		pri.freeSpacePos - (slotToDelete.offset + slotToDelete.length));
+
+
+    for (r_slot islot = 0; islot < pri.numberOfSlots;
          islot++)
     {
       RID ridOfRecordToShift;
       ridOfRecordToShift.pageNum = pageNum;
       ridOfRecordToShift.slotNum = islot;
 
-      // shift record to left
-      shiftRecord(pageData, ridOfRecordToShift, -lengthOfDeletedRecord);
+      SlotDirectory slotToShift;
+      getSlotForRID(pageData, ridOfRecordToShift, slotToShift);
+
+      if (slotToShift.offset == USHRT_MAX){
+    	  continue;
+      }
+
+      if (slotToShift.offset > slotToDelete.offset){
+    	  slotToShift.offset -= slotToDelete.length;
+    	  updateSlotDirectory(ridOfRecordToShift, pageData, slotToShift);
+
+      }
     }
+    //		pri.numberOfRecords -= 1;
+    // only update free space. deleted slot stays there
+    // for each consecutive record
+    slotToDelete.offset = USHRT_MAX;
+    updateSlotDirectory(internalRID, pageData, slotToDelete);
+
+    pri.freeSpacePos -= lengthOfDeletedRecord;
+    updatePageRecordInfo(pri, pageData);
 
     RC writeStatus = fileHandle.writePage(pageNum, pageData);
+    free(pageData);
     return writeStatus;
   }
-
-  // get the slot directory
 }
 
 RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
                                         const vector<Attribute> &recordDescriptor, const void *data,
                                         const RID &rid)
 {
-	RID externalRID = rid;
+  RID externalRID = rid;
 
-	RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
+  RID internalRID = getInternalRID(recordDescriptor, fileHandle, externalRID);
 
   // Get the page where the record is present
   int pageNum = internalRID.pageNum;
@@ -735,16 +760,17 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
   getSlotForRID(pageData, internalRID, slot);
 
   // If the record has been deleted return failure
-  if(slot.offset == USHRT_MAX){
-	  return failure;
+  if (slot.offset == USHRT_MAX)
+  {
+    return failure;
   }
 
   //get page record info
   PageRecordInfo pageRecordInfo;
   getPageRecordInfo(pageRecordInfo, pageData);
   //get free space in file
-  r_slot freeSpaceAvailable = PAGE_SIZE - getRecordDirectorySize(pageRecordInfo) //slots + pageRecordInfo
-                              - (pageRecordInfo.freeSpacePos);
+  int freeSpaceAvailable = PAGE_SIZE - getRecordDirectorySize(pageRecordInfo) //slots + pageRecordInfo
+                           - (pageRecordInfo.freeSpacePos);
 
   //Transform raw Data into record format
   char *record = (char *)malloc(PAGE_SIZE);
@@ -822,6 +848,10 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
         // shift record to left
         shiftRecord(pageData, ridOfRecordToShift, -(oldLength - (sizeof(r_slot) + sizeof(char) + sizeof(RID))));
       }
+      slot.length = sizeof(r_slot) + sizeof(char) + sizeof(RID);
+      updateSlotDirectory(internalRID, pageData, slot);
+      pageRecordInfo.freeSpacePos -= (oldLength - (sizeof(r_slot) + sizeof(char) + sizeof(RID)));
+      updatePageRecordInfo(pageRecordInfo, pageData);
     }
   }
   else if (newRecordLength == slot.length)
@@ -874,7 +904,9 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
   memcpy(recordData, pageData + recordSlot.offset, recordSlot.length);
 
   Record record = Record(recordDescriptor, recordData);
-  char *attributeValue = record.getAttributeValue(attributeName);
+  char *attributeValue = (char *)malloc(PAGE_SIZE);
+  memset(attributeValue, 0, PAGE_SIZE);
+  record.getAttributeValue(attributeName, attributeValue);
   AttrType attributeType = record.getAttributeType(attributeName);
 
   // Add a one byte null indicator array always for read record
@@ -885,14 +917,21 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
     makeFieldNull(nullIndicatorArray, 0);
   }
   memcpy(data, nullIndicatorArray, 1);
-  int offset=1;
-  if (attributeType == TypeVarChar){
-	  int strlength = strlen(attributeValue);
-	  memcpy((char*)data + offset, &strlength, sizeof(int));
-	  offset += sizeof(int);
-  }
-  memcpy((char *)data + offset, attributeValue, strlen(attributeValue));
+  int offset = 1;
+  if (attributeType == TypeVarChar)
+  {
+    int strlength;
+    memcpy(&strlength, attributeValue, 4);
 
+    memcpy((char *)data + offset, attributeValue, sizeof(int) + strlength);
+    offset += sizeof(int) + strlength;
+  }
+  else
+  {
+    memcpy((char *)data + offset, attributeValue, 4);
+  }
+
+  free(attributeValue);
   free(pageData);
   free(recordData);
   return success;
@@ -917,7 +956,8 @@ void Record::setTombstoneIndicatorPtr()
 
 void Record::setFieldPointers()
 {
-  fieldPointers = new r_slot[numberOfFields];
+  fieldPointers = (r_slot *)malloc(sizeof(r_slot) * numberOfFields);
+  memset(fieldPointers, 0, sizeof(r_slot) * numberOfFields);
   memcpy(fieldPointers,
          recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID),
          sizeof(r_slot) * numberOfFields);
@@ -927,25 +967,79 @@ void Record::setInputData()
 {
   r_slot sizeOfInputData = getRawRecordSize();
   inputData = (char *)malloc(sizeOfInputData);
+  memset(inputData, 0, sizeOfInputData);
   memcpy(inputData,
-         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) +  sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields, sizeOfInputData);
+         recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields, sizeOfInputData);
 }
 
 void Record::setNullIndicatorArray()
 {
-  r_slot sizeOfNullIndicatorArray = 0;
+  sizeOfNullIndicatorArray = 0;
   sizeOfNullIndicatorArray = ceil(numberOfFields / 8.0);
   nullIndicatorArray = (unsigned char *)malloc(sizeOfNullIndicatorArray);
+  memset(nullIndicatorArray, 0, sizeOfNullIndicatorArray);
 
   memcpy(nullIndicatorArray,
          recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) + sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields,
          sizeOfNullIndicatorArray);
 }
 
+r_slot Record::getLastFieldIndex()
+{
+  r_slot lastFieldIndex = numberOfFields - 1;
+  r_slot lastFieldPointerCounter = numberOfFields - 1;
+  r_slot lastFieldPointer = fieldPointers[lastFieldPointerCounter];
+  while (lastFieldPointer == USHRT_MAX)
+  {
+    lastFieldPointerCounter -= 1;
+    if (lastFieldPointer < 0)
+    {
+      lastFieldPointer = USHRT_MAX;
+      lastFieldIndex = USHRT_MAX;
+      break;
+    }
+    else
+    {
+      lastFieldPointer = fieldPointers[lastFieldPointerCounter];
+      lastFieldIndex = lastFieldPointerCounter;
+    }
+  }
+  return lastFieldIndex;
+}
+
+r_slot Record::getFirstFieldIndex()
+{
+  r_slot firstFieldIndex = 0;
+  r_slot firstFieldPointerCounter = 0;
+  r_slot firstFieldPointer = fieldPointers[firstFieldPointerCounter];
+  while (firstFieldPointer == USHRT_MAX)
+  {
+    firstFieldPointerCounter += 1;
+    if (firstFieldPointer > numberOfFields - 1)
+    {
+      firstFieldPointer = USHRT_MAX;
+      firstFieldIndex = USHRT_MAX;
+      break;
+    }
+    else
+    {
+      firstFieldPointer = fieldPointers[firstFieldPointerCounter];
+      firstFieldIndex = firstFieldPointerCounter;
+    }
+  }
+  return firstFieldIndex;
+}
+
 r_slot Record::getRawRecordSize()
 {
-  r_slot lastFieldPointer = fieldPointers[numberOfFields - 1];
-  AttrType lastRecordType = recordDescriptor[numberOfFields - 1].type;
+  r_slot lastFieldIndex = getLastFieldIndex();
+  r_slot firstFieldIndex = getFirstFieldIndex();
+  if (lastFieldIndex == USHRT_MAX)
+    return 0;
+  if (firstFieldIndex == USHRT_MAX)
+    return 0;
+  r_slot lastFieldPointer = fieldPointers[lastFieldIndex];
+  AttrType lastRecordType = recordDescriptor[lastFieldIndex].type;
   int lastFieldLength = 0;
   if (lastRecordType == TypeVarChar)
   {
@@ -957,7 +1051,7 @@ r_slot Record::getRawRecordSize()
   {
     lastFieldLength = 4;
   }
-  r_slot sizeOfInputData = lastFieldPointer + lastFieldLength - fieldPointers[0];
+  r_slot sizeOfInputData = lastFieldPointer + lastFieldLength - fieldPointers[firstFieldIndex] + sizeOfNullIndicatorArray;
   return sizeOfInputData;
 }
 
@@ -970,9 +1064,15 @@ Record::Record(const vector<Attribute> &recordDesc,
   setNumberOfFields();
   setTombstoneIndicator();
   setTombstoneIndicatorPtr();
-  setFieldPointers();
-  setInputData();
-  setNullIndicatorArray();
+  if (!isTombstone())
+  {
+    setFieldPointers();
+    setInputData();
+    setNullIndicatorArray();
+  }
+  // else
+  // {
+  // }
 }
 //	~Record(){
 //		delete rawData;
@@ -988,17 +1088,25 @@ r_slot Record::getNumberOfFields()
 
 r_slot Record::getRecordSize()
 {
-
   return getRawRecordSize() + getRecordMetaDataSize(recordDescriptor);
 }
 
-char *Record::getAttributeValue(const string &attributeName)
+/**
+ * The return Format is
+ * VarChar ->   |4 byte length info| varCharData|
+ * Int/Float -> |4 bytes data |
+ * @param attributeName
+ * @return
+ */
+void Record::getAttributeValue(const string &attributeName, char *attributeValue)
 {
   r_slot fieldPointerIndex = 0;
+  bool attributeFound = false;
   for (Attribute a : recordDescriptor)
   {
     if (a.name.compare(attributeName) == 0)
     {
+      attributeFound = true;
       break;
     }
     else
@@ -1006,7 +1114,10 @@ char *Record::getAttributeValue(const string &attributeName)
       fieldPointerIndex++;
     }
   }
-  return getAttributeValue(fieldPointerIndex);
+  if (!attributeFound)
+    attributeValue = NULL;
+  else
+    getAttributeValue(fieldPointerIndex, attributeValue);
 }
 
 bool Record::isTombstone()
@@ -1014,31 +1125,38 @@ bool Record::isTombstone()
   return (tombstoneIndicator == 1);
 }
 
-char *Record::getAttributeValue(r_slot fieldNumber)
+/**
+ * The return Format is
+ * VarChar ->   |4 byte length info| varCharData|
+ * Int/Float -> |4 bytes data |
+ * @param fieldNumber
+ * @return
+ */
+void Record::getAttributeValue(r_slot fieldNumber, char *attributeValue)
 {
   if (isFieldNull(fieldNumber))
   {
-    return NULL;
+    attributeValue = NULL;
+    return;
   }
   r_slot fieldStartPointer = fieldPointers[fieldNumber];
-  char *attributeValue = NULL;
   Attribute attributeMetaData = recordDescriptor[fieldNumber];
   if (attributeMetaData.type == TypeVarChar)
   {
     int lengthOfString = 0;
     memcpy(&lengthOfString, recordData + fieldStartPointer,
            sizeof(lengthOfString));
-    attributeValue = (char *)malloc(lengthOfString);
+    // copy the length of the varchar also
     memcpy(attributeValue,
+           recordData + fieldStartPointer, sizeof(int));
+    memcpy(attributeValue + sizeof(int),
            recordData + fieldStartPointer + sizeof(lengthOfString),
            lengthOfString);
   }
   else
   {
-    attributeValue = (char *)malloc(4);
-    memcpy(attributeValue, recordData + fieldStartPointer, 4);
+    memcpy(attributeValue, recordData + fieldStartPointer, sizeof(int));
   }
-  return attributeValue;
 }
 
 AttrType Record::getAttributeType(const string &attributeName)
@@ -1083,42 +1201,59 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
 
   if (value != NULL)
   {
+    if (attributeValue == NULL)
+    {
+      return false;
+    }
     if (conditionAttributeType == TypeVarChar)
     {
-      unsigned valueLength = 0;
+      int valueLength = 0;
       memcpy(&valueLength, value, 4);
-      char *conditionValue = (char *)malloc(valueLength);
+      char *conditionValue = (char *)malloc(valueLength + 1);
+      memset(conditionValue, 0, valueLength + 1);
       memcpy(conditionValue, (char *)value + 4, valueLength);
 
+      int attributeLength = 0;
+      memcpy(&attributeLength, attributeValue, 4);
+      char *attributeRealValue = (char *)malloc(attributeLength + 1);
+      memset(attributeRealValue, 0, attributeLength + 1);
+      memcpy(attributeRealValue, attributeValue + 4, attributeLength);
+
+      bool result = false;
       switch (compOp)
       {
       case EQ_OP:
-        if (strcmp(attributeValue, (const char *)conditionValue) == 0)
-          return true;
+        if (strcmp(attributeRealValue, conditionValue) == 0)
+          result = true;
         break;
       case LT_OP:
-        if (strcmp(attributeValue, (const char *)conditionValue) < 0)
-          return true;
+        if (strcmp(attributeRealValue, conditionValue) < 0)
+          result = true;
         break;
       case LE_OP:
-        if (strcmp(attributeValue, (const char *)conditionValue) <= 0)
-          return true;
+        if (strcmp(attributeRealValue, conditionValue) <= 0)
+          result = true;
         break;
       case GT_OP:
-        if (strcmp(attributeValue, (const char *)conditionValue) > 0)
-          return true;
+        if (strcmp(attributeRealValue, conditionValue) > 0)
+          result = true;
         break;
       case GE_OP:
-        if (strcmp(attributeValue, (const char *)conditionValue) >= 0)
-          return true;
+        if (strcmp(attributeRealValue, conditionValue) >= 0)
+          result = true;
         break;
       case NE_OP:
-        if (strcmp(attributeValue, (const char *)conditionValue) != 0)
-          return true;
+        if (strcmp(attributeRealValue, conditionValue) != 0)
+          result = true;
         break;
       case NO_OP:
-        return true;
+        result = true;
       }
+      free(conditionValue);
+      free(attributeRealValue);
+      conditionValue = NULL;
+      attributeValue = NULL;
+      return result;
     }
     if (conditionAttributeType == TypeInt)
     {
@@ -1195,7 +1330,7 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
       }
     }
   }
-  else //TODO: Check how to handle this
+  else //if value is null
   {
     switch (compOp)
     {
@@ -1211,6 +1346,8 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
       else
         return false;
       break;
+    case NO_OP:
+      return true;
     default:
       return false;
       break;
@@ -1223,113 +1360,119 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const
 RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 {
   if (isEOF == RBFM_EOF)
-    return -1;
+    return RBFM_EOF;
 
-  rid = nextRID;
+  RID tempRID = rid;
+  tempRID = nextRID;
   bool hitFound = false;
   void *recordData = (char *)malloc(PAGE_SIZE);
-
-  while (!hitFound)
+  char *pageData = (char *)malloc(PAGE_SIZE);
+  fileHandle->readPage(tempRID.pageNum, pageData);
+  Record *record = NULL;
+  while (!hitFound && isEOF != RBFM_EOF)
   {
-    char *pageData = (char *)malloc(PAGE_SIZE);
-    fileHandle->readPage(rid.pageNum, pageData);
     SlotDirectory slot;
-    getSlotForRID(pageData, rid, slot);
-
-    memcpy(recordData, pageData + slot.offset, slot.length);
-    Record record = Record(recordDescriptor, (char *)recordData);
-
-    if (!(record.isTombstone() || slot.offset == USHRT_MAX))
+    getSlotForRID(pageData, tempRID, slot);
+    if (slot.offset != USHRT_MAX)
     {
-      char *attributeValue;
-      attributeValue = record.getAttributeValue(conditionAttribute);
+      memset(recordData, 0, PAGE_SIZE);
+      memcpy(recordData, pageData + slot.offset, slot.length);
+      delete record;
+      record = new Record(recordDescriptor, (char *)recordData);
 
-      AttrType conditionAttributeType = record.getAttributeType(conditionAttribute);
-      if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
+      if (!(record->isTombstone()))
       {
-        hitFound = true;
+        char *attributeValue = (char *)malloc(PAGE_SIZE);
+        memset(attributeValue, 0, PAGE_SIZE);
+        record->getAttributeValue(conditionAttribute, attributeValue);
+
+        AttrType conditionAttributeType = record->getAttributeType(conditionAttribute);
+        if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
+        {
+          hitFound = true;
+          rid = tempRID;
+        }
+        free(attributeValue);
       }
     }
-
     PageRecordInfo pri;
     getPageRecordInfo(pri, pageData);
-    if (rid.slotNum + 1 > pri.numberOfSlots)
+    if (tempRID.slotNum + 1 >= pri.numberOfSlots)
     {
       unsigned numberOfPages = fileHandle->getNumberOfPages();
-      if (rid.pageNum >= numberOfPages - 1)
+      if (tempRID.pageNum + 1 >= numberOfPages)
       {
         isEOF = RBFM_EOF;
-        rid.pageNum = 0;
-        rid.slotNum = 0;
-        return 0;
       }
       else
       {
-        rid.pageNum++;
-        rid.slotNum = 0;
+        tempRID.pageNum++;
+        tempRID.slotNum = 0;
+        fileHandle->readPage(tempRID.pageNum, pageData);
       }
     }
     else
     {
-      rid.slotNum++;
+      tempRID.slotNum++;
     }
-    nextRID = rid;
-    free(pageData);
+    nextRID = tempRID;
   }
+  free(pageData);
 
   if (hitFound)
   {
-    r_slot numberOfFields = 0;
-    memcpy(&numberOfFields, (char *)recordData, sizeof(numberOfFields));
-    r_slot *fieldPointers = new r_slot[numberOfFields];
-    memcpy(fieldPointers,
-           (char *)recordData + sizeof(numberOfFields) + sizeof(char) + sizeof(RID),
-           sizeof(r_slot) * numberOfFields);
-    int nullFieldsIndicatorLength = ceil(numberOfFields / 8.0);
-    unsigned char *nullIndicatorArray = (unsigned char *)malloc(nullFieldsIndicatorLength);
-    memcpy(nullIndicatorArray, (char *)recordData + sizeof(numberOfFields) + sizeof(char) + sizeof(RID) + (numberOfFields * sizeof(fieldPointers[0])),
-           nullFieldsIndicatorLength);
-
-    short attrNumberOfFields = attributeNames.size();
-    int attrNullFieldsIndicatorLength = ceil(attrNumberOfFields / 8.0);
-    unsigned char *attrNullIndicatorArray = (unsigned char *)malloc(attrNullFieldsIndicatorLength);
-    memset(attrNullIndicatorArray, 0, attrNullFieldsIndicatorLength);
-
-    r_slot attrFieldPointerIndex = 0;
-    r_slot recFieldPointerIndex = 0;
-    int attrOffset = attrNullFieldsIndicatorLength;
-    for (Attribute a : recordDescriptor)
+    //    memcpy((char *)data, attrNullIndicatorArray, attrNullFieldsIndicatorLength);
+    int sizeOfNullArray = ceil(attributeNames.size() / 8.0);
+    unsigned char *nullIndicatorArray = (unsigned char *)malloc(sizeOfNullArray);
+    memset(nullIndicatorArray, 0, sizeOfNullArray);
+    int fieldIndex = 0;
+    int offset = sizeOfNullArray;
+    for (string attrName : attributeNames)
     {
-      for (string s : attributeNames)
+      char *attrValue = (char *)malloc(PAGE_SIZE);
+      memset(attrValue, 0, PAGE_SIZE);
+      record->getAttributeValue(attrName, attrValue);
+      AttrType attrType = record->getAttributeType(attrName);
+      if (attrValue == NULL)
       {
-        if (a.name.compare(s) == 0)
-        {
-          bool isNull = isFieldNull(nullIndicatorArray, recFieldPointerIndex);
-          if (isNull)
-            makeFieldNull(attrNullIndicatorArray, attrFieldPointerIndex);
-
-          if (a.type == TypeVarChar)
-          {
-            int varcharLength = 0;
-            memcpy(&varcharLength, (char *)recordData + fieldPointers[recFieldPointerIndex], 4);
-            memcpy((char *)data + attrOffset, (char *)recordData + fieldPointers[recFieldPointerIndex], 4 + varcharLength);
-            attrOffset += (4 + varcharLength);
-          }
-          else
-          {
-            memcpy((char *)data + attrOffset, (char *)recordData + fieldPointers[recFieldPointerIndex], 4);
-            attrOffset += 4;
-          }
-          attrFieldPointerIndex++;
-        }
+        makeFieldNull(nullIndicatorArray, fieldIndex);
+        continue;
       }
-      recFieldPointerIndex++;
+      else if (attrType == TypeVarChar)
+      {
+        int lengthOfString = 0;
+        memcpy(&lengthOfString, attrValue, 4);
+        memcpy((char *)data + offset, &lengthOfString, sizeof(int));
+        memcpy((char *)data + offset + sizeof(int), attrValue + 4, lengthOfString);
+        offset += sizeof(int) + lengthOfString;
+      }
+      else
+      {
+        memcpy((char *)data + offset, attrValue, 4);
+        offset += 4;
+      }
+      free(attrValue);
+      attrValue = NULL;
     }
-    memcpy((char *)data, attrNullIndicatorArray, attrNullFieldsIndicatorLength);
+    memcpy(data, nullIndicatorArray, sizeOfNullArray);
+    free(nullIndicatorArray);
+    nullIndicatorArray = NULL;
   }
 
-  free(recordData);
-  return 0;
+  if (!hitFound && isEOF == RBFM_EOF)
+  {
+    free(recordData);
+    recordData = NULL;
+    delete record;
+    return isEOF;
+  }
+  else
+  {
+    free(recordData);
+    recordData = NULL;
+    delete record;
+    return success;
+  }
 }
 
 RC RBFM_ScanIterator::close()
@@ -1343,17 +1486,20 @@ RawRecordPreparer::RawRecordPreparer(
 {
   this->recordDescriptor = recordDescriptor;
   nullIndicatorArraySize = ceil(recordDescriptor.size() / 8.0);
-  nullIndicatorArray = new unsigned char[nullIndicatorArraySize];
+  nullIndicatorArray = (unsigned char *)malloc(sizeof(unsigned char) * nullIndicatorArraySize);
   memset(nullIndicatorArray, 0, nullIndicatorArraySize);
   for (Attribute atr : recordDescriptor)
   {
     currentRecordSize += atr.length + nullIndicatorArraySize;
   }
+  // for simplicity and avoiding realloc errors, using fixed record size
+  currentRecordSize = PAGE_SIZE;
   recordData = (char *)malloc(currentRecordSize);
+  memset(recordData, 0, currentRecordSize);
   recordDataOffset += nullIndicatorArraySize;
 }
 
-char *RawRecordPreparer::prepareRecord()
+void RawRecordPreparer::prepareRecord(char *returnRecordData)
 {
   // check if all field values have been passed
   if (fieldIndexCounter != recordDescriptor.size())
@@ -1363,24 +1509,22 @@ char *RawRecordPreparer::prepareRecord()
   }
   memcpy(recordData, nullIndicatorArray, nullIndicatorArraySize);
   // shrink the recordData size if not needed
-  if (recordDataOffset < currentRecordSize)
-  {
-    char *temp = (char *)realloc(recordData, recordDataOffset);
-    if (temp == NULL)
-    {
-      cout << "error reallocating recordData. Exiting";
-      exit(1);
-    }
+  //  if (recordDataOffset < currentRecordSize)
+  //  {
+  //    char *temp = (char *)realloc(recordData, recordDataOffset);
+  //    if (temp == NULL)
+  //    {
+  //      cout << "error reallocating recordData. Exiting";
+  //      exit(1);
+  //    }
 
-    recordData = temp;
-    currentRecordSize = recordDataOffset;
-  }
+  //    recordData = temp;
+  //    currentRecordSize = recordDataOffset;
+  //  }
   // set another pointer to recordData
-  char *returnRecordData = recordData;
+  memcpy(returnRecordData, recordData, PAGE_SIZE);
   // reset recordData and other variables so that next record can be prepared
   resetCounters();
-
-  return returnRecordData;
 }
 
 RawRecordPreparer &RawRecordPreparer::setField(const string &value)
@@ -1403,6 +1547,27 @@ RawRecordPreparer &RawRecordPreparer::setField(const string &value)
     recordDataOffset += sizeof(int);
     memcpy(recordData + recordDataOffset, value.c_str(), value.size());
     recordDataOffset += value.size();
+  }
+  fieldIndexCounter++;
+  return *this;
+}
+
+RawRecordPreparer &RawRecordPreparer::setField(AttrLength value)
+{
+  Attribute attr = recordDescriptor[fieldIndexCounter];
+  if (attr.type != TypeInt)
+  {
+    cout << "Error in field setting : Expecting " << attr.name << " to be of type " << attr.type << " but got 'int'";
+    exit(1);
+  }
+  else if (!isValidField())
+  {
+    cout << "Field index out of bounds" << fieldIndexCounter << endl;
+  }
+  else
+  {
+    memcpy(recordData + recordDataOffset, &value, sizeof(value));
+    recordDataOffset += sizeof(value);
   }
   fieldIndexCounter++;
   return *this;
@@ -1511,8 +1676,6 @@ RawRecordPreparer &RawRecordPreparer::setRecordDescriptor(
 RawRecordPreparer::~RawRecordPreparer()
 {
   free(nullIndicatorArray);
-  free(recordData);
-  recordData = NULL;
   nullIndicatorArray = NULL;
 }
 
@@ -1522,19 +1685,21 @@ void RawRecordPreparer::resetCounters()
   recordDataOffset = 0;
   fieldIndexCounter = 0;
   currentRecordSize = 0;
-  recordData = NULL;
+  free(nullIndicatorArray);
   nullIndicatorArray = NULL;
   nullIndicatorArraySize = 0;
 
   // set it as the constructor initializes the values
   nullIndicatorArraySize = ceil(recordDescriptor.size() / 8.0);
-  nullIndicatorArray = new unsigned char[nullIndicatorArraySize];
+  nullIndicatorArray = (unsigned char *)malloc(sizeof(unsigned char) * nullIndicatorArraySize);
   memset(nullIndicatorArray, 0, nullIndicatorArraySize);
   for (Attribute atr : recordDescriptor)
   {
     currentRecordSize += atr.length + nullIndicatorArraySize;
   }
-  recordData = (char *)malloc(currentRecordSize);
+  // for simplicity and avoiding realloc errors, using fixed record size
+  currentRecordSize = PAGE_SIZE;
+  memset(recordData, 0, currentRecordSize);
   recordDataOffset += nullIndicatorArraySize;
 }
 
@@ -1543,33 +1708,41 @@ void RawRecordPreparer::resetCounters()
  * @param externalRID : The rid given by the user
  * @return the internal RID where the record is actually stored
  */
-RID RecordBasedFileManager::getInternalRID(const vector<Attribute>& recordDesc, FileHandle& fileHandle, const RID& externalRID) {
-	char* recordInInternalFormat = readRecordInInternalFormat(fileHandle, externalRID);
-	// record has been deleted. Return the original RID
-	if (recordInInternalFormat == NULL){
-		return externalRID;
-	}
-	Record record = Record(recordDesc, recordInInternalFormat);
+RID RecordBasedFileManager::getInternalRID(const vector<Attribute> &recordDesc, FileHandle &fileHandle, const RID &externalRID)
+{
+  char *recordInInternalFormat = readRecordInInternalFormat(fileHandle, externalRID);
+  // record has been deleted. Return the original RID
+  if (recordInInternalFormat == NULL)
+  {
+    return externalRID;
+  }
+  Record record = Record(recordDesc, recordInInternalFormat);
 
-	if (record.isTombstone()){
-		RID internalRID = record.getTombstoneRID();
-		return getInternalRID(recordDesc, fileHandle, internalRID);
-	}
-	else{
-		free(recordInInternalFormat);
-		return externalRID;
-	}
+  if (record.isTombstone())
+  {
+    RID internalRID = record.getTombstoneRID();
+    free(recordInInternalFormat);
+    return getInternalRID(recordDesc, fileHandle, internalRID);
+  }
+  else
+  {
+    free(recordInInternalFormat);
+    return externalRID;
+  }
 }
 
-RID Record::getTombstoneRID() {
-	if(isTombstone()){
-		return tombstoneRID;
-	}
-	else{
-		cerr << "Record::getTombstoneRID() : Trying to read tombstone RID for a record that is not a tombstone" << endl;
-		cerr << "Exiting" << endl;
-		exit(1);
-	}
+RID Record::getTombstoneRID()
+{
+  if (isTombstone())
+  {
+    return tombstoneRID;
+  }
+  else
+  {
+    cerr << "Record::getTombstoneRID() : Trying to read tombstone RID for a record that is not a tombstone" << endl;
+    cerr << "Exiting" << endl;
+    exit(1);
+  }
 }
 /**
  * This method will not resolve the RID to internal RID.
@@ -1577,27 +1750,34 @@ RID Record::getTombstoneRID() {
  * @param rid
  * @return
  */
-char* RecordBasedFileManager::readRecordInInternalFormat(FileHandle& fileHandle, const RID& rid){
+char *RecordBasedFileManager::readRecordInInternalFormat(FileHandle &fileHandle, const RID &rid)
+{
 
-	char* pageData = (char*) malloc(PAGE_SIZE);
-	fileHandle.readPage(rid.pageNum, pageData);
+  char *pageData = (char *)malloc(PAGE_SIZE);
+  fileHandle.readPage(rid.pageNum, pageData);
 
-	SlotDirectory slot;
-	getSlotForRID(pageData, rid, slot);
+  SlotDirectory slot;
+  getSlotForRID(pageData, rid, slot);
 
-	/**
+  /**
 	 * if record is deleted
 	 */
-	if (slot.offset == USHRT_MAX){
-		return NULL;
-	}
+  if (slot.offset == USHRT_MAX)
+  {
+    return NULL;
+  }
 
-	char* internalRecordData = (char*) malloc(slot.length);
+  char *internalRecordData = (char *)malloc(slot.length);
 
-	memcpy(internalRecordData, pageData + slot.offset, slot.length);
+  memcpy(internalRecordData, pageData + slot.offset, slot.length);
 
-	free(pageData);
-	return internalRecordData;
-
+  free(pageData);
+  return internalRecordData;
 }
 
+Record::~Record()
+{
+  free(this->inputData);
+  free(this->fieldPointers);
+  free(this->nullIndicatorArray);
+}
