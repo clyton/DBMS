@@ -701,26 +701,40 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
   }
   else
   {
-    // for each consecutive record
-    slotToDelete.offset = USHRT_MAX;
-    updateSlotDirectory(internalRID, pageData, slotToDelete);
 
-    //		pri.numberOfRecords -= 1;
-    // only update free space. deleted slot stays there
-    pri.freeSpacePos -= lengthOfDeletedRecord;
-    updatePageRecordInfo(pri, pageData);
 
-    for (r_slot islot = internalRID.slotNum + 1; islot < pri.numberOfSlots;
+    memmove(pageData + slotToDelete.offset, pageData + slotToDelete.offset + slotToDelete.length,
+    		pri.freeSpacePos - (slotToDelete.offset + slotToDelete.length));
+
+
+    for (r_slot islot = 0; islot < pri.numberOfSlots;
          islot++)
     {
-
       RID ridOfRecordToShift;
       ridOfRecordToShift.pageNum = pageNum;
       ridOfRecordToShift.slotNum = islot;
 
-      // shift record to left
-      shiftRecord(pageData, ridOfRecordToShift, -lengthOfDeletedRecord);
+      SlotDirectory slotToShift;
+      getSlotForRID(pageData, ridOfRecordToShift, slotToShift);
+
+      if (slotToShift.offset == USHRT_MAX){
+    	  continue;
+      }
+
+      if (slotToShift.offset > slotToDelete.offset){
+    	  slotToShift.offset -= slotToDelete.length;
+    	  updateSlotDirectory(ridOfRecordToShift, pageData, slotToShift);
+
+      }
     }
+    //		pri.numberOfRecords -= 1;
+    // only update free space. deleted slot stays there
+    // for each consecutive record
+    slotToDelete.offset = USHRT_MAX;
+    updateSlotDirectory(internalRID, pageData, slotToDelete);
+
+    pri.freeSpacePos -= lengthOfDeletedRecord;
+    updatePageRecordInfo(pri, pageData);
 
     RC writeStatus = fileHandle.writePage(pageNum, pageData);
     free(pageData);

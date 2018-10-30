@@ -5,15 +5,16 @@
  *      Author: dantis
  */
 
-#include "pfm.h"
-#include "rbfm.h"
-#include "test_util.h"
-#include <stdlib.h>
+#include <rbf/pfm.h>
+#include <rbf/rbfm.h>
+#include <rbf/test_util.h>
 #include <cassert>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <string>
 #include <vector>
+#include <sstream>
 
 using namespace std;
 
@@ -24,7 +25,7 @@ bool isFieldNullTest(unsigned char *nullIndicatorArray, int fieldIndex)
   return isNull;
 }
 
-int UnitTest(RecordBasedFileManager *rbfm)
+int UnitTest(RecordBasedFileManager *rbfm, int tableCount, int columnCount)
 {
   // Functions tested
   // 1. Create Record-Based File
@@ -37,9 +38,9 @@ int UnitTest(RecordBasedFileManager *rbfm)
        << "***** In RBF Test Case 8 *****" << endl;
 
   RC rc;
-  string maxIdFile = "../CurrentTableID.tbl";
-  string colFileName = "../Columns.tbl";
-  string tableFileName = "../Tables.tbl";
+  string maxIdFile = "CurrentTableID.tbl";
+  string colFileName = "Columns.tbl";
+  string tableFileName = "Tables.tbl";
 
   vector<Attribute> colRecordDesc;
   vector<Attribute> tblRecordDescriptor;
@@ -82,7 +83,7 @@ int UnitTest(RecordBasedFileManager *rbfm)
   rc = rbfm->openFile(tableFileName, tblFileHandle);
   assert(rc == success && "Opening the file should not fail.");
   rid = {0,0};
-  for (int i=1; i<maxTableId; i++){
+  for (int i=0; i<tableCount; i++){
   rc = rbfm->readRecord(tblFileHandle, tblRecordDescriptor, rid, returnedData);
   if (rc == success){
   rbfm->printRecord(tblRecordDescriptor, returnedData);
@@ -97,7 +98,7 @@ int UnitTest(RecordBasedFileManager *rbfm)
   assert(rc == success && "Opening the file should not fail.");
 
   rid = {0,0};
-  for (int i=1; i<maxTableId * colRecordDesc.size(); i++){
+  for (int i=0; i<columnCount; i++){
   rc = rbfm->readRecord(colFileHandle, colRecordDesc, rid, returnedData);
 //  assert(rc == success && "Reading a record should not fail.");
 
@@ -150,11 +151,24 @@ int UnitTest(RecordBasedFileManager *rbfm)
   return -1;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
+  if (argc != 3){
+	  cerr<< "need number of columns rids" << argc << endl;
+	  exit(1);
+  }
+  std::istringstream iss( argv[1]);
+
+  int nooftables;
+  iss>>nooftables;
+
+  std::istringstream iss2( argv[2]);
+  int noofcol;
+  iss2 >> noofcol;
+
   // To test the functionality of the record-based file manager
   RecordBasedFileManager *rbfm = RecordBasedFileManager::instance();
 
-  RC rcmain = UnitTest(rbfm);
+  RC rcmain = UnitTest(rbfm, nooftables, noofcol);
   return rcmain;
 }
