@@ -180,7 +180,6 @@ private:
   vector<Attribute> recordDescriptor;
   char *recordData;
   r_slot recordSize;
-
   r_slot numberOfFields = 0;
   char tombstoneIndicator = 0;
   RID tombstoneRID;
@@ -215,9 +214,9 @@ public:
   ~Record();
   r_slot getNumberOfFields();
 
-  char *getAttributeValue(const string &attributeName);
+  void getAttributeValue(const string &attributeName, char* attributeValue);
 
-  char *getAttributeValue(r_slot fieldNumber);
+  void getAttributeValue(r_slot fieldNumber, char* attributeValue);
 
   AttrType getAttributeType(const string &attributeName);
 

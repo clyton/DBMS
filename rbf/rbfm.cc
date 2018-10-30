@@ -884,7 +884,8 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
   memcpy(recordData, pageData + recordSlot.offset, recordSlot.length);
 
   Record record = Record(recordDescriptor, recordData);
-  char *attributeValue = record.getAttributeValue(attributeName);
+  char *attributeValue = (char*)malloc(PAGE_SIZE);
+  record.getAttributeValue(attributeName, attributeValue);
   AttrType attributeType = record.getAttributeType(attributeName);
 
   // Add a one byte null indicator array always for read record
@@ -1016,7 +1017,7 @@ r_slot Record::getRecordSize()
  * @param attributeName
  * @return
  */
-char *Record::getAttributeValue(const string &attributeName)
+void Record::getAttributeValue(const string &attributeName, char* attributeValue)
 {
   r_slot fieldPointerIndex = 0;
   bool attributeFound = false;
@@ -1033,9 +1034,9 @@ char *Record::getAttributeValue(const string &attributeName)
     }
   }
   if (! attributeFound)
-	  return NULL;
+	  attributeValue = NULL;
   else
-	  return getAttributeValue(fieldPointerIndex);
+	  getAttributeValue(fieldPointerIndex, attributeValue);
 }
 
 bool Record::isTombstone()
@@ -1050,22 +1051,19 @@ bool Record::isTombstone()
  * @param fieldNumber
  * @return
  */
-char *Record::getAttributeValue(r_slot fieldNumber)
+void Record::getAttributeValue(r_slot fieldNumber, char* attributeValue)
 {
   if (isFieldNull(fieldNumber))
   {
-    return NULL;
+	  attributeValue = NULL;
   }
   r_slot fieldStartPointer = fieldPointers[fieldNumber];
-  char *attributeValue = NULL;
   Attribute attributeMetaData = recordDescriptor[fieldNumber];
   if (attributeMetaData.type == TypeVarChar)
   {
     int lengthOfString = 0;
     memcpy(&lengthOfString, recordData + fieldStartPointer,
            sizeof(lengthOfString));
-    attributeValue = (char *)malloc(4 + lengthOfString);
-    memset(attributeValue, 0, 4 + lengthOfString);
     // copy the length of the varchar also
     memcpy(attributeValue,
            recordData + fieldStartPointer, 4);
@@ -1075,11 +1073,9 @@ char *Record::getAttributeValue(r_slot fieldNumber)
   }
   else
   {
-    attributeValue = (char *)malloc(4);
     memset(attributeValue, 0, 4);
     memcpy(attributeValue, recordData + fieldStartPointer, 4);
   }
-  return attributeValue;
 }
 
 AttrType Record::getAttributeType(const string &attributeName)
@@ -1304,8 +1300,8 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 
     	if (!(record->isTombstone() ))
     	{
-    		char *attributeValue;
-    		attributeValue = record->getAttributeValue(conditionAttribute);
+    		char *attributeValue = (char*) malloc(PAGE_SIZE);
+    		record->getAttributeValue(conditionAttribute, attributeValue);
 
     		AttrType conditionAttributeType = record->getAttributeType(conditionAttribute);
     		if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
@@ -1395,7 +1391,8 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
 	  int fieldIndex=0;
 	  int offset = sizeOfNullArray;
 	  for(string attrName: attributeNames){
-		  char * attrValue = record->getAttributeValue(attrName);
+		  char * attrValue = (char*) malloc(PAGE_SIZE);
+		  record->getAttributeValue(attrName, attrValue);
 		  AttrType attrType = record->getAttributeType(attrName);
 		  if (attrValue == NULL){
 			  makeFieldNull(nullIndicatorArray, fieldIndex);
