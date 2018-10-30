@@ -291,8 +291,8 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
                            .prepareRecord(colCatalogRecord);
     rbfm->insertRecord(colFileHandle, colRecordDescriptor, colCatalogRecord, rid);
 
-    //char* readColRecord = (char*) malloc(PAGE_SIZE);
-    //rbfm->readRecord(colFileHandle, colRecordDescriptor, rid, readColRecord);
+    char* readColRecord = (char*) malloc(PAGE_SIZE);
+    rbfm->readRecord(colFileHandle, colRecordDescriptor, rid, readColRecord);
     //rbfm->printRecord(colRecordDescriptor, colCatalogRecord);
 
     //cout << "Inserting records in column catalog. RIDs "<< rid.pageNum << "," <<
