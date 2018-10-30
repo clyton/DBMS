@@ -291,12 +291,12 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
                            .prepareRecord(colCatalogRecord);
     rbfm->insertRecord(colFileHandle, colRecordDescriptor, colCatalogRecord, rid);
 
-    char* readColRecord = (char*) malloc(PAGE_SIZE);
-    rbfm->readRecord(colFileHandle, colRecordDescriptor, rid, readColRecord);
-    rbfm->printRecord(colRecordDescriptor, colCatalogRecord);
+    //char* readColRecord = (char*) malloc(PAGE_SIZE);
+    //rbfm->readRecord(colFileHandle, colRecordDescriptor, rid, readColRecord);
+    //rbfm->printRecord(colRecordDescriptor, colCatalogRecord);
 
-    cout << "Inserting records in column catalog. RIDs "<< rid.pageNum << "," <<
-    		rid.slotNum << endl;
+    //cout << "Inserting records in column catalog. RIDs "<< rid.pageNum << "," <<
+    		//rid.slotNum << endl;
   }
     free(colCatalogRecord);
 
@@ -342,7 +342,7 @@ RC RelationManager::deleteTable(const string &tableName)
   RID rid;
   while (rbfmsi.getNextRecord(rid, buffer) != RBFM_EOF)
   {
-	 cout << "Deleting column rids: " << rid.pageNum << " , " << rid.slotNum <<endl;
+	 //cout << "Deleting column rids: " << rid.pageNum << " , " << rid.slotNum <<endl;
     if (rbfm->deleteRecord(colFileHandle, colRecordDescriptor, rid) != 0)
       return -1;
   }
