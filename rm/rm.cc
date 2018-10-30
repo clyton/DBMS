@@ -255,7 +255,13 @@ RC RelationManager::createTable(const string &tableName, const vector<Attribute>
 
   const string fileName = tableName + ".tbl";
   FileHandle fileHandle;
-  rbfm->createFile(fileName);
+  int status = rbfm->createFile(fileName);
+
+  if (status != success){
+	//  cout << "Create table failed for table " << tableName << endl;
+	 // cout << "File already exists" << endl;
+	  return status;
+  }
 
   // insert tuple in table catalog
   readCurrentTableID();
@@ -307,6 +313,9 @@ RC RelationManager::deleteTable(const string &tableName)
   RID tableIdRID;
   const int tableId = getTableIdForTable(tableName, tableIdRID);
 
+  if (tableId == 0){
+	  return -1;
+  }
   // delete tables from table catalog
   FileHandle fileHandle;
 
@@ -333,9 +342,15 @@ RC RelationManager::deleteTable(const string &tableName)
 
   void *buffer = malloc(PAGE_SIZE);
   RID rid;
+  vector<RID> ridsToDelete;
   while (rbfmsi.getNextRecord(rid, buffer) != RBFM_EOF)
   {
-    if (rbfm->deleteRecord(colFileHandle, colRecordDescriptor, rid) != 0)
+
+	  ridsToDelete.push_back(rid);
+  }
+  for (RID ridToDelete: ridsToDelete){
+
+    if (rbfm->deleteRecord(colFileHandle, colRecordDescriptor, ridToDelete) != 0)
       return -1;
   }
 

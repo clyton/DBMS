@@ -523,6 +523,7 @@ RC RecordBasedFileManager::insertRecord(FileHandle &fileHandle,
 
   //  char *pageRecordData = (char*) ::operator new ( PAGE_SIZE );
   char *pageRecordData = (char *)malloc(PAGE_SIZE);
+  memset(pageRecordData, 0, PAGE_SIZE);
   RID insertRID = getPageForRecordOfSize(fileHandle, recordSizeInBytes,
                                          pageRecordData);
 
@@ -667,6 +668,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
 
   // read page from which to delete record
   char *pageData = (char *)malloc(PAGE_SIZE);
+  memset(pageData,0,PAGE_SIZE);
   fileHandle.readPage(pageNum, pageData);
 
   // get the record directory information
@@ -680,11 +682,12 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
 
   if (slotToDelete.offset == USHRT_MAX)
   {
+	  free(pageData);
     return failure;
   }
 
   // Are you deleting the last record in the page
-  if (internalRID.slotNum + 1 == pri.numberOfSlots)
+  if (slotToDelete.offset + slotToDelete.length == pri.freeSpacePos)
   {
     slotToDelete.offset = USHRT_MAX;
     updateSlotDirectory(internalRID, pageData, slotToDelete);
@@ -693,6 +696,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
     updatePageRecordInfo(pri, pageData);
 
     RC writeStatus = fileHandle.writePage(pageNum, pageData);
+    free(pageData);
     return writeStatus;
   }
   else
@@ -709,6 +713,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
     for (r_slot islot = internalRID.slotNum + 1; islot < pri.numberOfSlots;
          islot++)
     {
+
       RID ridOfRecordToShift;
       ridOfRecordToShift.pageNum = pageNum;
       ridOfRecordToShift.slotNum = islot;
@@ -718,6 +723,7 @@ RC RecordBasedFileManager::deleteRecord(FileHandle &fileHandle,
     }
 
     RC writeStatus = fileHandle.writePage(pageNum, pageData);
+    free(pageData);
     return writeStatus;
   }
 }
