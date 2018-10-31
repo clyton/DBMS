@@ -167,4 +167,7 @@ Design
 
 
 6. Implementation Detail
-• Other implementation details goes here.
+- The USER will not be able to alter the SYSTEM tables -> Tables.tbl and Columns.tbl
+- Given the table name, the table descriptor is first found ( Tables.tbl is scanned to get the table-id and Columns.tbl is scanned to find the Columns corresponding to table-id). 
+Following this a tuple is inserted, updated, deleted or read by calling the corresponding insert record, update record, delete record or read record functions from the recordBasedFileManager
+- The scan function, scans each record for the given condition starting from the first page, until a hit is found or the End of File is reached. 
