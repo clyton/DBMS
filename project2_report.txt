@@ -1,15 +1,51 @@
 1. Basic information
 Team number (e.g., 01) : 
-#1 Student ID : 
-#1 Student Name : 
+#1 Student ID : 53649044
+#1 Student Name : Clyton Dantis
 #2 Student ID : 
 #2 Student Name : 
-OS (bit) :
-gcc version :
+OS (bit) :  Linux 
+gcc version : 5.4.0
 
 
 2. Meta-data
 - Show your meta-data design (Tables and Columns table) and information about each column.
+
+
+* 'Tables' Catalog table schema
+
+| table-type:int | table-id:int | table-name:varchar(50) | file-name:varchar(50) |
+|----------------+--------------+------------------------+-----------------------|
+| SYSTEM=0       |            1 | Tables                 | Tables.tbl            |
+| SYSTEM=0       |            2 | Columns                | Columns.tbl           |
+| USER=1         |            3 | Employee               | Employee.tbl          |
+
+The table type column decides whether user has privilege to update those tables.
+The file name column stores information about the file where actual records of that table are stored.
+
+
+* 'Columns' Catalog table design
+
+| table-id:int | column-name:varchar(50) | column-type:int | column-length:int | column-position:int |
+|--------------+-------------------------+-----------------+-------------------+---------------------|
+|            1 | table-id                | TypeInt         |                 4 |                   1 |
+|            1 | table-name              | TypeVarChar     |                50 |                   2 |
+|            1 | file-name               | TypeVarChar     |                50 |                   3 |
+|            2 | table-id                | TypeInt         |                 4 |                   1 |
+|            2 | column-name             | TypeVarChar     |                50 |                   2 |
+|            2 | column-type             | TypeInt         |                 4 |                   3 |
+|            2 | column-length           | TypeInt         |                 4 |                   4 |
+|            2 | column-position         | TypeInt         |                 4 |                   5 |
+|            3 | empname                 | TypeVarChar     |                30 |                   1 |
+|            3 | age                     | TypeInt         |                 4 |                   2 |
+|            3 | height                  | TypeReal        |                 4 |                   3 |
+|            3 | salary                  | TypeInt         |                 4 |                   4 |
+
+table-id: This column maps a row in the Columns' table catalog to the table name in Tables catalog
+column-name: attribute names of a table
+column-type: TypeInt, TypeVarChar and TypeReal are enums representing an int value
+column-length: Gives length information about each attribute in a table
+column-position : This gives information about the field position of a table attribute
 
 
 3. Internal Record Format
@@ -34,4 +70,3 @@ gcc version :
 
 7. Other (optional)
 - Freely use this section to tell us about things that are related to the project 2, but not related to the other sections (optional)
-
