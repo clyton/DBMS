@@ -96,6 +96,8 @@ IXFileHandle::~IXFileHandle()
 
 RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePageCount, unsigned &appendPageCount)
 {
+    if(fileHandle.collectCounterValues(readPageCount, writePageCount, appendPageCount) != -1)
+		return 0;
     return -1;
 }
 
