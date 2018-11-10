@@ -21,22 +21,22 @@ IndexManager::~IndexManager()
 
 RC IndexManager::createFile(const string &fileName)
 {
-    return -1;
+    return pfm->createFile(fileName);
 }
 
 RC IndexManager::destroyFile(const string &fileName)
 {
-    return -1;
+    return pfm->destroyFile(fileName);
 }
 
 RC IndexManager::openFile(const string &fileName, IXFileHandle &ixfileHandle)
 {
-    return -1;
+    return pfm->openFile(fileName, ixfileHandle.fileHandle);
 }
 
 RC IndexManager::closeFile(IXFileHandle &ixfileHandle)
 {
-    return -1;
+    return pfm->closeFile(ixfileHandle.fileHandle);
 }
 
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
