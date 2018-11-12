@@ -33,7 +33,7 @@ const r_slot PAGE_RECORD_INFO_OFFSET = PAGE_SIZE - sizeof(struct PageRecordInfo)
 void makeFieldNull(unsigned char *nullIndicatorArray, unsigned int fieldIndex)
 {
   int byteNumber = fieldIndex / 8;
-  nullIndicatorArray[byteNumber] = nullIndicatorArray[byteNumber] | (1 << (7 - fieldIndex % 8));
+  nullIndicatorArray[byteNumber] = nullIndicatorArray[byteNumber] | (1 << (7 - (fieldIndex % 8)));
 }
 
 bool isFieldNull(unsigned char *nullIndicatorArray, int fieldIndex)
@@ -290,7 +290,8 @@ RID getPageForRecordOfSize(FileHandle &fileHandle, r_slot sizeInBytes,
     PageRecordInfo pageRecordInfo;
     getPageRecordInfo(pageRecordInfo, pageData);
     int freeSpaceAvailable = PAGE_SIZE - getRecordDirectorySize(pageRecordInfo) //slots + pageRecordInfo
-                             - (pageRecordInfo.freeSpacePos);                   // pg occupied from top
+                             - (pageRecordInfo.freeSpacePos)                    // pg occupied from top
+    						 -  sizeof(SlotDirectory);  // for new record
     if (freeSpaceAvailable > sizeInBytes)
     {
       // Check if a slot position is empty
@@ -906,15 +907,20 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
   Record record = Record(recordDescriptor, recordData);
   char *attributeValue = (char *)malloc(PAGE_SIZE);
   memset(attributeValue, 0, PAGE_SIZE);
-  record.getAttributeValue(attributeName, attributeValue);
+  bool isNull = record.getAttributeValue(attributeName, attributeValue);
   AttrType attributeType = record.getAttributeType(attributeName);
 
   // Add a one byte null indicator array always for read record
-  unsigned char *nullIndicatorArray = (unsigned char *)malloc(1);
-  memset(nullIndicatorArray, 0, 1);
-  if (attributeValue == NULL)
+  unsigned char *nullIndicatorArray = (unsigned char *)malloc(sizeof(unsigned char));
+  memset(nullIndicatorArray, 0, sizeof(unsigned char));
+  if (isNull)
   {
     makeFieldNull(nullIndicatorArray, 0);
+	memcpy(data, nullIndicatorArray, 1);
+	free(attributeValue);
+	free(pageData);
+	free(recordData);
+	return success;
   }
   memcpy(data, nullIndicatorArray, 1);
   int offset = 1;
@@ -1096,9 +1102,9 @@ r_slot Record::getRecordSize()
  * VarChar ->   |4 byte length info| varCharData|
  * Int/Float -> |4 bytes data |
  * @param attributeName
- * @return
+ * @return true if the value is null else returns false
  */
-void Record::getAttributeValue(const string &attributeName, char *attributeValue)
+bool Record::getAttributeValue(const string &attributeName, char *attributeValue)
 {
   r_slot fieldPointerIndex = 0;
   bool attributeFound = false;
@@ -1114,10 +1120,13 @@ void Record::getAttributeValue(const string &attributeName, char *attributeValue
       fieldPointerIndex++;
     }
   }
+  bool isNull = false;
   if (!attributeFound)
-    attributeValue = NULL;
+	  isNull = true;
   else
-    getAttributeValue(fieldPointerIndex, attributeValue);
+    isNull = getAttributeValue(fieldPointerIndex, attributeValue);
+
+  return isNull;
 }
 
 bool Record::isTombstone()
@@ -1132,12 +1141,13 @@ bool Record::isTombstone()
  * @param fieldNumber
  * @return
  */
-void Record::getAttributeValue(r_slot fieldNumber, char *attributeValue)
+bool Record::getAttributeValue(r_slot fieldNumber, char *attributeValue)
 {
+  bool isNull = false;
   if (isFieldNull(fieldNumber))
   {
-    attributeValue = NULL;
-    return;
+	  isNull = true;
+    return isNull;
   }
   r_slot fieldStartPointer = fieldPointers[fieldNumber];
   Attribute attributeMetaData = recordDescriptor[fieldNumber];
@@ -1157,6 +1167,7 @@ void Record::getAttributeValue(r_slot fieldNumber, char *attributeValue)
   {
     memcpy(attributeValue, recordData + fieldStartPointer, sizeof(int));
   }
+  return isNull;
 }
 
 AttrType Record::getAttributeType(const string &attributeName)
@@ -1384,7 +1395,12 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
       {
         char *attributeValue = (char *)malloc(PAGE_SIZE);
         memset(attributeValue, 0, PAGE_SIZE);
-        record->getAttributeValue(conditionAttribute, attributeValue);
+        bool isNull = record->getAttributeValue(conditionAttribute, attributeValue);
+
+        if (isNull){
+        	free(attributeValue);
+        	attributeValue = NULL;
+        }
 
         AttrType conditionAttributeType = record->getAttributeType(conditionAttribute);
         if (CheckCondition(conditionAttributeType, attributeValue, value, compOp))
@@ -1392,7 +1408,9 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data)
           hitFound = true;
           rid = tempRID;
         }
+        if (!isNull){
         free(attributeValue);
+        }
       }
     }
     PageRecordInfo pri;
