@@ -236,32 +236,49 @@ RC updatePageRecordInfo(PageRecordInfo &pri, void *pageData)
   return success;
 }
 /**
- * Shifts the record by 'byBytesToShift' and updates their offsets
- *
+ * Shifts the record given by {@code rid} and all consecutive records in that page
+ * by 'byBytesToShift' and updates their offsets
+ * Also update the pageRecordInfo with new freespace available
  * @param pageData : the memory buffer on which the record resides
- * @param slotNum : The record slot number
+ * @param the start offset of the record from which the shift starts
  * @param byBytesToShift : If negative, shift record to left, else shift to
  * right by 'ByBytesToShift'
  * @return
  */
-RC shiftRecord(char *pageData, const RID &rid, int byBytesToShift)
+RC shiftRecord(char *pageData, r_slot slotToShiftOffset, int byBytesToShift)
 {
-  SlotDirectory slotToShift;
-  getSlotForRID(pageData, rid, slotToShift);
 
-  if (slotToShift.offset + byBytesToShift < 0 ||
-      slotToShift.offset + byBytesToShift + slotToShift.length > PAGE_SIZE)
+  PageRecordInfo pri;
+  getPageRecordInfo(pri, pageData);
+
+  if (slotToShiftOffset + byBytesToShift < 0 ||
+      byBytesToShift + pri.freeSpacePos + getRecordDirectorySize(pri) > PAGE_SIZE)
   {
     return failure;
   }
 
-  memmove(pageData + slotToShift.offset + byBytesToShift,
-          pageData + slotToShift.offset, slotToShift.length);
+  memmove(pageData + slotToShiftOffset + byBytesToShift,
+          pageData + slotToShiftOffset, pri.freeSpacePos - slotToShiftOffset);
 
-  slotToShift.offset += byBytesToShift;
+  for (r_slot islot = 0; islot < pri.numberOfSlots;
+          islot++)
+     {
+       RID ridOfRecordToShift;
+//       ridOfRecordToShift.pageNum = rid.pageNum; page number not needed
+       ridOfRecordToShift.slotNum = islot;
 
-  updateSlotDirectory(rid, pageData, slotToShift);
+       SlotDirectory islotDir;
+       getSlotForRID(pageData, ridOfRecordToShift, islotDir);
 
+       if (islotDir.offset == USHRT_MAX){
+     	  continue;
+       }
+
+       if (islotDir.offset >= slotToShiftOffset){
+     	  islotDir.offset += byBytesToShift;
+     	  updateSlotDirectory(ridOfRecordToShift, pageData, islotDir);
+       }
+     }
   return success;
 }
 
@@ -290,9 +307,10 @@ RID getPageForRecordOfSize(FileHandle &fileHandle, r_slot sizeInBytes,
     PageRecordInfo pageRecordInfo;
     getPageRecordInfo(pageRecordInfo, pageData);
     int freeSpaceAvailable = PAGE_SIZE - getRecordDirectorySize(pageRecordInfo) //slots + pageRecordInfo
-                             - (pageRecordInfo.freeSpacePos)                    // pg occupied from top
-    						 -  sizeof(SlotDirectory);  // for new record
-    if (freeSpaceAvailable > sizeInBytes)
+                             - (pageRecordInfo.freeSpacePos);                    // pg occupied from top
+    // is free space available enough for size of record + slot directory
+    if (freeSpaceAvailable > 0 &&
+    		freeSpaceAvailable >= sizeInBytes +  sizeof(SlotDirectory))
     {
       // Check if a slot position is empty
       RID eachRID;
@@ -778,45 +796,45 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
   // if length of new record data < length of old record data
   r_slot newRecordLength = getLengthOfRecordAndTransformRecord(data, recordDescriptor, record);
 
-  short oldLength = slot.length;
-  short lengthDiff = oldLength - newRecordLength;
+  r_slot oldLength = slot.length;
+  int lengthDiff = oldLength - newRecordLength;
   if (newRecordLength < slot.length)
   {
     // place record at offset of old record, slot.offset
     memmove(pageData + slot.offset, record, newRecordLength);
 
-    // update the length of old slot with new slot,
-    slot.length = newRecordLength;
-    updateSlotDirectory(internalRID, pageData, slot);
 
-    pageRecordInfo.freeSpacePos -= (lengthDiff);
-    updatePageRecordInfo(pageRecordInfo, pageData);
+//    for (r_slot islot = internalRID.slotNum + 1; islot < pageRecordInfo.numberOfSlots;
+//         islot++)
+//    {
+//      RID ridOfRecordToShift;
+//      ridOfRecordToShift.pageNum = pageNum;
+//      ridOfRecordToShift.slotNum = islot;
 
-    for (r_slot islot = internalRID.slotNum + 1; islot < pageRecordInfo.numberOfSlots;
-         islot++)
-    {
-      RID ridOfRecordToShift;
-      ridOfRecordToShift.pageNum = pageNum;
-      ridOfRecordToShift.slotNum = islot;
+      // shift record to left. lengthdiff is positive so negate
+      shiftRecord(pageData, slot.offset + oldLength, -lengthDiff);
+      // update the length of old slot with new slot,
+      slot.length = newRecordLength;
+      updateSlotDirectory(internalRID, pageData, slot);
 
-      // shift record to left
-      shiftRecord(pageData, ridOfRecordToShift, -lengthDiff);
-    }
+      pageRecordInfo.freeSpacePos -= (lengthDiff);
+      updatePageRecordInfo(pageRecordInfo, pageData);
+//    }
   }
   else if (newRecordLength > slot.length)
   {
     if (freeSpaceAvailable >= newRecordLength - slot.length)
     {
-      for (r_slot islot = pageRecordInfo.numberOfSlots - 1; islot > internalRID.slotNum;
-           islot--)
-      {
-        RID ridOfRecordToShift;
-        ridOfRecordToShift.pageNum = pageNum;
-        ridOfRecordToShift.slotNum = islot;
+//      for (r_slot islot = pageRecordInfo.numberOfSlots - 1; islot > internalRID.slotNum;
+//           islot--)
+//      {
+//        RID ridOfRecordToShift;
+//        ridOfRecordToShift.pageNum = pageNum;
+//        ridOfRecordToShift.slotNum = islot;
 
         // shift record to right
-        shiftRecord(pageData, ridOfRecordToShift, -lengthDiff);
-      }
+        shiftRecord(pageData, slot.offset + oldLength, -lengthDiff);
+//      }
 
       // place record at offset of old record, slot.offset
       memmove(pageData + slot.offset, record, newRecordLength);
@@ -839,16 +857,16 @@ RC RecordBasedFileManager::updateRecord(FileHandle &fileHandle,
       //Update the tombstone indicator pointer
       memmove(pageData + slot.offset + sizeof(r_slot) + sizeof(char), &newRID, sizeof(RID));
 
-      for (r_slot islot = internalRID.slotNum + 1; islot < pageRecordInfo.numberOfSlots;
-           islot++)
-      {
-        RID ridOfRecordToShift;
-        ridOfRecordToShift.pageNum = pageNum;
-        ridOfRecordToShift.slotNum = islot;
-
+//      for (r_slot islot = internalRID.slotNum + 1; islot < pageRecordInfo.numberOfSlots;
+//           islot++)
+//      {
+//        RID ridOfRecordToShift;
+//        ridOfRecordToShift.pageNum = pageNum;
+//        ridOfRecordToShift.slotNum = islot;
+//
         // shift record to left
-        shiftRecord(pageData, ridOfRecordToShift, -(oldLength - (sizeof(r_slot) + sizeof(char) + sizeof(RID))));
-      }
+        shiftRecord(pageData, slot.offset + oldLength, -(oldLength - (sizeof(r_slot) + sizeof(char) + sizeof(RID))));
+//      }
       slot.length = sizeof(r_slot) + sizeof(char) + sizeof(RID);
       updateSlotDirectory(internalRID, pageData, slot);
       pageRecordInfo.freeSpacePos -= (oldLength - (sizeof(r_slot) + sizeof(char) + sizeof(RID)));
@@ -895,11 +913,12 @@ RC RecordBasedFileManager::readAttribute(FileHandle &fileHandle,
                                          const string &attributeName, void *data)
 {
 
+	RID internalRID = getInternalRID(recordDescriptor, fileHandle, rid);
   char *pageData = (char *)malloc(PAGE_SIZE);
-  fileHandle.readPage(rid.pageNum, pageData);
+  fileHandle.readPage(internalRID.pageNum, pageData);
 
   SlotDirectory recordSlot;
-  getSlotForRID(pageData, rid, recordSlot);
+  getSlotForRID(pageData, internalRID, recordSlot);
 
   char *recordData = (char *)malloc(recordSlot.length);
   memcpy(recordData, pageData + recordSlot.offset, recordSlot.length);
