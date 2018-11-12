@@ -375,7 +375,7 @@ RC RelationManager::getAttributes(const string &tableName, vector<Attribute> &at
 RC RelationManager::insertTuple(const string &tableName, const void *data, RID &rid)
 {
 	if (isSystemTable(tableName))
-		return false;
+		return failure;
   FileHandle fileHandle;
   string fileName = tableName + ".tbl";
   vector<Attribute> recordDescriptor;
@@ -391,7 +391,7 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
 RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
 {
 	if (isSystemTable(tableName))
-		return false;
+		return failure;
   FileHandle fileHandle;
   string fileName = tableName + ".tbl";
   vector<Attribute> recordDescriptor;
@@ -405,7 +405,7 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
 RC RelationManager::updateTuple(const string &tableName, const void *data, const RID &rid)
 {
 	if (isSystemTable(tableName))
-		return false;
+		return failure;
   FileHandle fileHandle;
   string fileName = tableName + ".tbl";
   vector<Attribute> recordDescriptor;
