@@ -219,9 +219,9 @@ public:
 
   r_slot getFirstFieldIndex();
 
-  void getAttributeValue(const string &attributeName, char *attributeValue);
+  bool getAttributeValue(const string &attributeName, char *attributeValue);
 
-  void getAttributeValue(r_slot fieldNumber, char *attributeValue);
+  bool getAttributeValue(r_slot fieldNumber, char *attributeValue);
 
   AttrType getAttributeType(const string &attributeName);
 
