@@ -3,12 +3,26 @@
 
 #include <string>
 #include <vector>
-#include <climits>
 
-#include "../rbf/pfm.h"
+#include "pfm.h"
 
 using namespace std;
 typedef unsigned short int r_slot;
+struct SlotDirectory
+{
+  r_slot offset = 0;
+  r_slot length = 0;
+};
+
+struct PageRecordInfo
+{
+  r_slot numberOfSlots = 0;
+/**
+ * @{code freeSpacePointer} points to the first free space position available in the page
+ *
+ */
+  r_slot freeSpacePos = 0;
+};
 // Record ID
 typedef struct
 {
@@ -26,13 +40,23 @@ typedef enum
 
 typedef unsigned AttrLength;
 
-bool isFieldNull(unsigned char *nullIndicatorArray, int fieldIndex);
 struct Attribute
 {
   string name;       // attribute name
   AttrType type;     // attribute type
   AttrLength length; // attribute length
 };
+
+// rbfm.cc functions
+void makeFieldNull(unsigned char *nullIndicatorArray, unsigned int fieldIndex);
+bool isFieldNull(unsigned char *nullIndicatorArray, int fieldIndex);
+r_slot getRecordDirectorySize(const PageRecordInfo &pri);
+void getPageRecordInfo(PageRecordInfo &pageRecordInfo, char const *pageData);
+void putPageRecordInfo(PageRecordInfo &pri, char *pageData);
+RC updatePageRecordInfo(PageRecordInfo &pri, void *pageData);
+r_slot getLengthOfRecordAndTransformRecord(const void *data, const vector<Attribute> &recordDescriptor, char *record);
+SlotDirectory getSlotForRID(char const *pageData, RID rid, SlotDirectory &slot);
+RC updateSlotDirectory(const RID &rid, void *pageData, SlotDirectory &updatedSlot);
 
 // Comparison Operator (NOT needed for part 1 of the project)
 typedef enum
