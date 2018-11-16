@@ -95,4 +95,65 @@ class IXFileHandle {
 
 };
 
+class Key{
+public:
+	virtual Key* setKeyData(char* entry, int offset) = 0;
+	virtual r_slot getKeySize() = 0;
+	virtual ~Key();
+};
+
+class StringKey : public Key{
+private:
+	string data;
+	r_slot keySize = 0;
+public:
+	virtual Key* setKeyData(char* entry, int offset);
+	virtual r_slot getKeySize() ;
+};
+
+class IntKey : public Key{
+private:
+	int data;
+public:
+	virtual Key* setKeyData(char* entry, int offset);
+	virtual r_slot getKeySize() ;
+};
+
+class FloatKey : public Key{
+private:
+	float data;
+public:
+	virtual Key* setKeyData(char* entry, int offset);
+	virtual r_slot getKeySize() ;
+};
+
+class Entry{
+public:
+	Entry(char* entry, AttrType aType);
+	Key* getKey();
+	RID getRID();
+	virtual int getKeyOffset();
+	virtual int getRIDOffset();
+	virtual ~Entry();
+protected:
+	char* entry;
+	AttrType aType;
+	Key *key;
+	RID rid;
+};
+
+class IntermediateEntry : public Entry{
+public:
+	PageNum getLeftPtr();
+	PageNum getRightPtr();
+	IntermediateEntry(char* entry, AttrType aType);
+	virtual int getKeyOffset();
+	virtual int getRIDOffset();
+private:
+	PageNum leftPtr = 0;
+	PageNum rightPtr = 0;
+
+
+};
 #endif
+

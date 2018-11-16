@@ -1,6 +1,11 @@
 
 #include "ix.h"
 
+#include <cstring>
+#include <iostream>
+
+#include "../rbf/pfm.h"
+
 IndexManager* IndexManager::_index_manager = 0;
 
 IndexManager* IndexManager::instance()
@@ -41,6 +46,9 @@ RC IndexManager::closeFile(IXFileHandle &ixfileHandle)
 
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
 {
+	bool leafNode = false;
+	while(! leafNode){
+	}
     return -1;
 }
 
@@ -101,3 +109,95 @@ RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePa
     return -1;
 }
 
+
+Entry::Entry(char* entry, AttrType atype){
+	this->aType = aType;
+	this->entry = entry;
+	switch(aType){
+	case TypeReal : key = new FloatKey(); break;
+	case TypeInt : key = new IntKey(); break;
+	case TypeVarChar : key = new StringKey(); break;
+	}
+}
+Entry::~Entry(){
+	if (key){
+		delete[] key;
+	}
+}
+Key* Entry::getKey(){
+	int offset = getKeyOffset();
+	return key->setKeyData(entry, offset);
+}
+RID Entry::getRID(){
+	int offset = getRIDOffset();
+	memcpy(&rid, entry+offset, sizeof(rid));
+	return rid;
+}
+
+int Entry::getKeyOffset(){
+	return 0;
+}
+
+int Entry::getRIDOffset(){
+	return getKeyOffset() + key->getKeySize();
+}
+
+Key::~Key(){
+
+}
+
+Key* StringKey::setKeyData(char* entry, int offset){
+ int length;
+ memcpy(&length, entry+ offset, sizeof(length));
+ offset+=sizeof(length);
+ data.assign(entry+offset, entry+offset+length);
+ keySize = sizeof(length) + length;
+
+ return this;
+}
+
+r_slot StringKey::getKeySize(){
+	if (keySize == 0){
+		cerr << "Before asking for size, set key data using setKeyData" <<endl;
+	}
+	return keySize;
+}
+
+Key* IntKey::setKeyData(char* entry, int offset){
+	memcpy(&data, entry+offset, sizeof(int));
+	return this;
+}
+
+r_slot IntKey::getKeySize(){
+	return sizeof(int);
+}
+
+Key* FloatKey::setKeyData(char* entry, int offset){
+	memcpy(&data, entry+offset, sizeof(float));
+	return this;
+}
+
+r_slot FloatKey::getKeySize(){
+	return sizeof(float);
+}
+
+IntermediateEntry::IntermediateEntry(char* entry, AttrType aType): Entry(entry, aType){
+}
+
+PageNum IntermediateEntry::getLeftPtr(){
+	memcpy(&leftPtr, this->entry, sizeof(leftPtr));
+	return leftPtr;
+}
+
+PageNum IntermediateEntry::getRightPtr(){
+	memcpy(&rightPtr, this->entry + sizeof(leftPtr) + key->getKeySize() + sizeof(rid), sizeof(rightPtr));
+	return rightPtr;
+}
+
+int IntermediateEntry::getKeyOffset(){
+	return sizeof(leftPtr);
+}
+
+int IntermediateEntry::getRIDOffset(){
+	return sizeof(leftPtr) + key->getKeySize();
+}
