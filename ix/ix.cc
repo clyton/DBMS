@@ -1,6 +1,7 @@
 
 #include "ix.h"
 
+#include <stdlib.h>
 #include <cstring>
 #include <iostream>
 
@@ -8,6 +9,31 @@
 
 IndexManager* IndexManager::_index_manager = 0;
 
+PageNum getRootPageID(IXFileHandle& ixfileHandle){
+	char* data = (char*) malloc(PAGE_SIZE);
+	ixfileHandle.fileHandle.readPage(0, data);
+
+	PageNum rootPageID;
+	memcpy(&rootPageID, data, sizeof(rootPageID));
+
+	return rootPageID;
+
+}
+void prepareLeafEntry(char *leafEntryBuf,const void* key, RID rid, const Attribute &attribute){
+
+	int keySize = 0;
+	if (attribute.type == TypeVarChar){
+		int length =0;
+		memcpy(&length, key, sizeof(length));
+		keySize = sizeof(length) + length;
+
+	}
+	else{
+		keySize = sizeof(int);
+	}
+	memcpy(leafEntryBuf, key, keySize);
+	memcpy(leafEntryBuf+keySize, &rid, sizeof(rid));
+}
 IndexManager* IndexManager::instance()
 {
     if(!_index_manager)
@@ -46,9 +72,13 @@ RC IndexManager::closeFile(IXFileHandle &ixfileHandle)
 
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
 {
-	bool leafNode = false;
-	while(! leafNode){
-	}
+	char* leafEntryBuf = (char*) malloc(PAGE_SIZE);
+	prepareLeafEntry(leafEntryBuf,key, rid, attribute);
+
+	PageNum rootPageId = getRootPageID(ixfileHandle);
+	char* pageData = (char*) malloc(PAGE_SIZE);
+	ixfileHandle.fileHandle.readPage(rootPageId, pageData);
+
     return -1;
 }
 
