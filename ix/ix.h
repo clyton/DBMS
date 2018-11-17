@@ -143,8 +143,8 @@ public:
 class Entry{
 public:
 	Entry(char* entry, AttrType aType);
-	Key* getKey();
-	RID getRID();
+	virtual Key* getKey();
+	virtual RID getRID();
 	virtual int getKeyOffset();
 	virtual int getRIDOffset();
 	virtual ~Entry();
@@ -187,7 +187,7 @@ public:
 };
 
 
-enum class BTPageType : char { INTERMEDIATE = '1', LEAF = '0' };
+enum BTPageType { INTERMEDIATE = 1, LEAF = 0 };
 
 /**
  * Page Format for BTPage :
@@ -210,7 +210,7 @@ enum class BTPageType : char { INTERMEDIATE = '1', LEAF = '0' };
  */
 class BTPage {
  public:
-  BTPage(char *page, const Attribute &attribute);
+  BTPage(const char *page, const Attribute &attribute);
   ~BTPage();
   BTPageType getPageType();
   r_slot getFreeSpaceAvailable();
@@ -227,19 +227,31 @@ class BTPage {
    */
   RC insertEntry(char *entry, int slotNumber, int length);
   RC getEntry(r_slot slotNum, char *buf);  // same as readEntry()
-  char *removeEntry(int slotNumber);
+  RC removeEntry(int slotNumber, char* entryBuf);
   RC readEntry(r_slot slotNum, char *buf);
   char *getPage();
   int getNumberOfSlots();
 
+
  private:
-  void setPageType();
-  void setAttribute(const Attribute &attribute);
-  void setPageRecordInfo();
-  void setSlotDirectory();
-  void setSiblingNode();
+  // The read methods will read the pageBuffer into data members
+  void readPageType();
+  void readAttribute(const Attribute &attribute);
+  void readPageRecordInfo();
+  void readSlotDirectory();
+  void readSiblingNode();
   // r_slot getSmallestEntryGreaterThan(char* key, KeyComparator const* key);
   void copySlotsToPage(vector<SlotDirectory> slots, char *pageBuffer);
+
+  // The set methods will update the pageBuffer*
+  void setPageType(); // copy pType to pageBuffer
+  void setAttribute(const Attribute &attribute);
+  void setPageRecordInfo(); // copy pri to page buffer
+  void setSlotDirectory(); //copy the slots vector to page buffer
+  void setSiblingNode();  // copy sibling pointer to page buffer
+  void printPage();
+
+  RC shiftRecord(char *pageData, r_slot slotToShiftOffset, int byBytesToShift);
 
  private:
   BTPageType pageType;
