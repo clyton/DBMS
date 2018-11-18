@@ -65,6 +65,13 @@ class IndexManager {
 class IX_ScanIterator {
     public:
 
+        IXFileHandle *ixfileHandle;
+        Attribute attribute;
+        const void* lowKey;
+        const void* highKey;
+        bool lowKeyInclusive;
+        bool highKeyInclusive;
+
 		// Constructor
         IX_ScanIterator();
 

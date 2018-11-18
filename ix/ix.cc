@@ -263,6 +263,12 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
         bool        	highKeyInclusive,
         IX_ScanIterator &ix_ScanIterator)
 {
+    ix_ScanIterator.ixfileHandle = &ixfileHandle;
+    ix_ScanIterator.attribute = attribute;
+    ix_ScanIterator.lowKey = lowKey;
+    ix_ScanIterator.highKey = highKey;
+    ix_ScanIterator.lowKeyInclusive = lowKeyInclusive;
+    ix_ScanIterator.highKeyInclusive = highKeyInclusive;
     return -1;
 }
 
@@ -272,6 +278,14 @@ void IndexManager::printBtree(IXFileHandle &ixfileHandle, const Attribute &attri
 
 IX_ScanIterator::IX_ScanIterator()
 {
+    ixfileHandle = NULL;
+    lowKey = NULL;
+    highKey = NULL;
+    lowKeyInclusive = false;
+    highKeyInclusive = false;
+    attribute.name = "";
+    attribute.type = TypeInt;
+    attribute.length = 0;
 }
 
 IX_ScanIterator::~IX_ScanIterator()
@@ -280,6 +294,52 @@ IX_ScanIterator::~IX_ScanIterator()
 
 RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 {
+        //char* leafEntryBuf = (char*) malloc(PAGE_SIZE);
+	//r_slot entrySize = prepareLeafEntry(leafEntryBuf,key, rid, attribute);
+    //LeafEntry *leafEntry = new LeafEntry(leafEntryBuf, attribute.type);
+
+	PageNum rootPageId = getRootPageID(ixfileHandle);
+	char* pageData = (char*) malloc(PAGE_SIZE);
+	ixfileHandle.fileHandle.readPage(rootPageId, pageData);
+
+	BTPage *btPg = new BTPage(pageData, attribute);
+	stack<PageNum> traversal;
+	PageNum pgToTraverse = rootPageId;
+	char* entry = (char*) malloc(PAGE_SIZE);
+	while(btPg->getPageType() != BTPageType::LEAF){
+		traversal.push(pgToTraverse);
+		r_slot islot;
+		IntermediateEntry *ptrIEntry = NULL;
+		for ( islot = 0; islot < btPg->getNumberOfSlots(); islot++){
+			memset(entry,0,PAGE_SIZE);
+			btPg->readEntry(islot, entry);
+			ptrIEntry = new IntermediateEntry (entry, attribute.type);
+			IntermediateComparator iComp;
+			if(iComp.compare(*ptrIEntry, *leafEntry) > 0){ // if entry in node greater than leaf entry
+				break;
+
+			}
+			delete[] ptrIEntry;
+		}
+		if (islot < btPg->getNumberOfSlots()){ // islot in range
+			pgToTraverse = ptrIEntry->getLeftPtr();
+		}
+		else{ //islot is out of range
+			// this means all entries in the file were smaller than
+			// ientry and that caused all slots to be read
+			// But it may also mean that there were no entries in the file
+			// In the first case, we have to traverse to the rightPtr of iEntry
+			// Case 2 can never happen. We will never get an empty intermediate node
+			// at this point in the code
+			pgToTraverse = ptrIEntry->getRightPtr();
+
+		}
+		if(btPg) delete[] btPg;
+		memset(pageData,0, PAGE_SIZE);
+		ixfileHandle.fileHandle.readPage(pgToTraverse, pageData);
+		btPg = new BTPage(pageData, attribute);
+		delete ptrIEntry;
+	}
     return -1;
 }
 
