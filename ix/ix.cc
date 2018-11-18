@@ -157,6 +157,50 @@ PageNum IndexManager::getRootPageID(IXFileHandle &ixfileHandle) {
   return rootID;
 }
 
+void IndexManager::traverseBtree(IXFileHandle &ixfileHandle, BTPage *btPg, const Attribute &attribute, LeafEntry *leafEntry) {
+    
+    PageNum rootPageId = getRootPageID(ixfileHandle);
+	char* pageData = (char*) malloc(PAGE_SIZE);
+	ixfileHandle.fileHandle.readPage(rootPageId, pageData);
+	btPg = new BTPage(pageData, attribute);
+	PageNum pgToTraverse = rootPageId;
+	char* entry = (char*) malloc(PAGE_SIZE);
+    while(btPg->getPageType() != BTPageType::LEAF){
+		r_slot islot;
+		IntermediateEntry *ptrIEntry = NULL;
+		for ( islot = 0; islot < btPg->getNumberOfSlots(); islot++){
+			memset(entry,0,PAGE_SIZE);
+			btPg->readEntry(islot, entry);
+			ptrIEntry = new IntermediateEntry (entry, attribute.type);
+			IntermediateComparator iComp;
+			if(leafEntry == 0 || iComp.compare(*ptrIEntry, *leafEntry) > 0){ // if entry in node greater than leaf entry
+				break;
+			}
+			delete[] ptrIEntry;
+		}
+		if (islot < btPg->getNumberOfSlots()){ // islot in range
+			pgToTraverse = ptrIEntry->getLeftPtr();
+		}
+		else{ //islot is out of range
+			// this means all entries in the file were smaller than
+			// ientry and that caused all slots to be read
+			// But it may also mean that there were no entries in the file
+			// In the first case, we have to traverse to the rightPtr of iEntry
+			// Case 2 can never happen. We will never get an empty intermediate node
+			// at this point in the code
+			pgToTraverse = ptrIEntry->getRightPtr();
+
+		}
+		if(btPg) delete[] btPg;
+		memset(pageData,0, PAGE_SIZE);
+		ixfileHandle.fileHandle.readPage(pgToTraverse, pageData);
+		btPg = new BTPage(pageData, attribute);
+		delete ptrIEntry;
+	}
+    free(pageData);
+    free(entry);
+}
+
 
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
 {
@@ -222,8 +266,8 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 		while(islot < numberOfSlots){
 			btPg->readEntry(islot, entry);
 			islot++;
-			Entry pageLeafEntry(entry, attribute.type);
-			if(icomp.compare(*leafEntry, pageLeafEntry) > 0){
+            LeafEntry *pageLeafEntry = new LeafEntry(entry, attribute.type);
+			if(icomp.compare(*leafEntry, *pageLeafEntry) > 0){
 				slotFound = true;
 				break;
 			}
@@ -269,8 +313,48 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
     ix_ScanIterator.highKey = highKey;
     ix_ScanIterator.lowKeyInclusive = lowKeyInclusive;
     ix_ScanIterator.highKeyInclusive = highKeyInclusive;
-    return -1;
+
+    BTPage *btPg = NULL;
+    LeafEntry *leafEntry = NULL;
+    if(lowKey)
+    {
+        char* lowKeyLeafEntryBuf = (char*) malloc(PAGE_SIZE);
+        RID lowKeyRID;
+        lowKeyRID.pageNum = USHRT_MAX;
+        lowKeyRID.slotNum = USHRT_MAX; 
+        r_slot entrySize = prepareLeafEntry(lowKeyLeafEntryBuf, lowKey, lowKeyRID, attribute);
+        leafEntry = new LeafEntry(lowKeyLeafEntryBuf, attribute.type);
+        traverseBtree(ixfileHandle, btPg, attribute, leafEntry);
+    }
+    else
+    {
+        traverseBtree(ixfileHandle, btPg, attribute, NULL);
+    }
+
+    r_slot islot = 0;
+    r_slot numberOfSlots = btPg->getNumberOfSlots();
+    IntermediateComparator icomp;
+    bool slotFound = false;
+    char* entry = (char*) malloc(PAGE_SIZE);
+    while(islot < numberOfSlots){
+        btPg->readEntry(islot, entry);
+        islot++;
+        LeafEntry *pageLeafEntry = new LeafEntry(entry, attribute.type);
+        if(leafEntry == 0 || icomp.compare(*leafEntry, *pageLeafEntry) > 0){
+            slotFound = true;
+            break;
+        }
+    }
+
+    if(!lowKeyInclusive)
+        if(islot < numberOfSlots)
+            btPg->readEntry(islot++, entry);
+    ix_ScanIterator.nextLeafEntry = new LeafEntry(entry, attribute.type);
+
+    return 0;
 }
+
+
 
 void IndexManager::printBtree(IXFileHandle &ixfileHandle, const Attribute &attribute) const {
 
@@ -286,6 +370,8 @@ IX_ScanIterator::IX_ScanIterator()
     attribute.name = "";
     attribute.type = TypeInt;
     attribute.length = 0;
+    nextLeafEntry = NULL;
+    isEOF = 0;
 }
 
 IX_ScanIterator::~IX_ScanIterator()
@@ -294,53 +380,12 @@ IX_ScanIterator::~IX_ScanIterator()
 
 RC IX_ScanIterator::getNextEntry(RID &rid, void *key)
 {
-        //char* leafEntryBuf = (char*) malloc(PAGE_SIZE);
-	//r_slot entrySize = prepareLeafEntry(leafEntryBuf,key, rid, attribute);
-    //LeafEntry *leafEntry = new LeafEntry(leafEntryBuf, attribute.type);
-
-	PageNum rootPageId = getRootPageID(ixfileHandle);
-	char* pageData = (char*) malloc(PAGE_SIZE);
-	ixfileHandle.fileHandle.readPage(rootPageId, pageData);
-
-	BTPage *btPg = new BTPage(pageData, attribute);
-	stack<PageNum> traversal;
-	PageNum pgToTraverse = rootPageId;
-	char* entry = (char*) malloc(PAGE_SIZE);
-	while(btPg->getPageType() != BTPageType::LEAF){
-		traversal.push(pgToTraverse);
-		r_slot islot;
-		IntermediateEntry *ptrIEntry = NULL;
-		for ( islot = 0; islot < btPg->getNumberOfSlots(); islot++){
-			memset(entry,0,PAGE_SIZE);
-			btPg->readEntry(islot, entry);
-			ptrIEntry = new IntermediateEntry (entry, attribute.type);
-			IntermediateComparator iComp;
-			if(iComp.compare(*ptrIEntry, *leafEntry) > 0){ // if entry in node greater than leaf entry
-				break;
-
-			}
-			delete[] ptrIEntry;
-		}
-		if (islot < btPg->getNumberOfSlots()){ // islot in range
-			pgToTraverse = ptrIEntry->getLeftPtr();
-		}
-		else{ //islot is out of range
-			// this means all entries in the file were smaller than
-			// ientry and that caused all slots to be read
-			// But it may also mean that there were no entries in the file
-			// In the first case, we have to traverse to the rightPtr of iEntry
-			// Case 2 can never happen. We will never get an empty intermediate node
-			// at this point in the code
-			pgToTraverse = ptrIEntry->getRightPtr();
-
-		}
-		if(btPg) delete[] btPg;
-		memset(pageData,0, PAGE_SIZE);
-		ixfileHandle.fileHandle.readPage(pgToTraverse, pageData);
-		btPg = new BTPage(pageData, attribute);
-		delete ptrIEntry;
-	}
-    return -1;
+    rid = nextLeafEntry->getRID();
+    key = nextLeafEntry->getKeyData();
+    IntermediateComparator icomp; //TODO: Using Icomparator bcoz key + rid is unique and leafcomparator does not consider rid
+    
+    
+    return 0;
 }
 
 RC IX_ScanIterator::close()
@@ -386,6 +431,13 @@ Key* Entry::getKey(){
 	int offset = getKeyOffset();
 	return key->setKeyData(entry, offset);
 }
+
+void* Entry::getKeyData(){
+    int len = key->getKeySize();
+    int offset = getKeyOffset();
+    return key->getKeyData(entry,len,offset);
+}
+
 RID Entry::getRID(){
 	int offset = getRIDOffset();
 	memcpy(&rid, entry+offset, sizeof(rid));
@@ -425,6 +477,12 @@ string StringKey::getData(){
 return data;
 }
 
+void* StringKey::getKeyData(char* entry, int size, int offset){
+    void* rawData = malloc(size);
+    memcpy(&rawData, entry+ offset, size);
+    return rawData;
+}
+
 int StringKey::compare(Key& other){
 	string otherString = static_cast<StringKey&>(other).getData();
 	return this->data.compare(otherString);
@@ -433,6 +491,12 @@ int StringKey::compare(Key& other){
 Key* IntKey::setKeyData(char* entry, int offset){
 	memcpy(&data, entry+offset, sizeof(int));
 	return this;
+}
+
+void* IntKey::getKeyData(char* entry, int size, int offset){
+    void* rawData = malloc(size);
+    memcpy(&rawData, entry+ offset, size);
+    return rawData;
 }
 
 r_slot IntKey::getKeySize(){
@@ -458,6 +522,12 @@ Key* FloatKey::setKeyData(char* entry, int offset){
 
 r_slot FloatKey::getKeySize(){
 	return sizeof(float);
+}
+
+void* FloatKey::getKeyData(char* entry, int size, int offset){
+    void* rawData = malloc(size);
+    memcpy(&rawData, entry+ offset, size);
+    return rawData;
 }
 
 float FloatKey::getData(){
@@ -742,4 +812,5 @@ RC BTPage::readEntry(r_slot slotNum, char* entryBuf){
 	memcpy(entryBuf, pageBuffer + slots[slotNum].offset, slots[slotNum].length);
 
 	return success;
+
 }

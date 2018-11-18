@@ -59,6 +59,7 @@ class IndexManager {
     private:
       RC setUpIndexFile(IXFileHandle &ixfileHandle, const Attribute &attribute);
       PageNum getRootPageID(IXFileHandle &ixfileHandle);
+      void traverseBtree(IXFileHandle &ixfileHandle, BTPage *btPg, const Attribute &attribute, LeafEntry *leafEntry);
 };
 
 
@@ -71,6 +72,8 @@ class IX_ScanIterator {
         const void* highKey;
         bool lowKeyInclusive;
         bool highKeyInclusive;
+        LeafEntry* nextLeafEntry;
+        int isEOF;
 
 		// Constructor
         IX_ScanIterator();
@@ -112,6 +115,7 @@ class Key{
 public:
 	virtual Key* setKeyData(char* entry, int offset) = 0;
 	virtual r_slot getKeySize() = 0;
+    virtual void* getKeyData(char* entry, int size, int offset) = 0;
 	virtual ~Key();
 	virtual int compare(Key& other) = 0;
 };
@@ -122,6 +126,7 @@ private:
 	r_slot keySize = 0;
 public:
 	Key* setKeyData(char* entry, int offset);
+    void* getKeyData(char* entry, int size, int offset);
 	r_slot getKeySize() ;
 	int compare(Key& other);
 	string getData();
@@ -132,6 +137,7 @@ private:
 	int data;
 public:
 	Key* setKeyData(char* entry, int offset);
+    void* getKeyData(char* entry, int size, int offset);
 	r_slot getKeySize() ;
 	int compare(Key& other);
 	int getData();
@@ -141,9 +147,10 @@ class FloatKey : public Key{
 private:
 	float data;
 public:
-	 Key* setKeyData(char* entry, int offset);
+	Key* setKeyData(char* entry, int offset);
+    void* getKeyData(char* entry, int size, int offset);
 	r_slot getKeySize() ;
-	 int compare(Key& other);
+	int compare(Key& other);
 	float getData();
 };
 
@@ -151,6 +158,7 @@ class Entry{
 public:
 	Entry(char* entry, AttrType aType);
 	virtual Key* getKey();
+    virtual void* getKeyData();
 	virtual RID getRID();
 	virtual int getKeyOffset();
 	virtual int getRIDOffset();
@@ -159,6 +167,7 @@ protected:
 	char* entry;
 	AttrType aType;
 	Key *key;
+    void *data;
 	RID rid;
 };
 
@@ -172,8 +181,6 @@ public:
 private:
 	PageNum leftPtr = 0;
 	PageNum rightPtr = 0;
-
-
 };
 
 class LeafEntry : public Entry{
