@@ -242,6 +242,10 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 
 	}
 
+    free(leafEntryBuf);
+    free(pageData);
+    free(entry);
+    delete leafEntry;
 	return 0;
 }
 
