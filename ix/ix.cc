@@ -283,7 +283,7 @@ RC IXFileHandle::collectCounterValues(unsigned &readPageCount, unsigned &writePa
 
 
 Entry::Entry(char* entry, AttrType atype){
-	this->aType = aType;
+	this->aType = atype;
 	this->entry = entry;
 	switch(aType){
 	case TypeReal : key = new FloatKey(); break;
