@@ -32,6 +32,27 @@ r_slot prepareLeafEntry(char *leafEntryBuf,const void* key, RID rid, const Attri
 
 	return keySize + sizeof(rid);
 }
+
+r_slot prepareIntermediateEntry(char *IntermediateEntryBuf,const void* key, PageNum pageNum, const Attribute &attribute){
+
+    int keySize = 0;
+	if (attribute.type == TypeVarChar){
+		int length =0;
+		memcpy(&length, key, sizeof(length));
+		keySize = sizeof(length) + length;
+	}
+	else{
+		keySize = sizeof(int);
+	}
+
+	memcpy(IntermediateEntryBuf, key, keySize);
+	memcpy(IntermediateEntryBuf+keySize, &pageNum, sizeof(pageNum));
+
+	return keySize + sizeof(pageNum);
+
+}
+
+
 IndexManager* IndexManager::instance()
 {
     if(!_index_manager)
@@ -135,6 +156,7 @@ PageNum IndexManager::getRootPageID(IXFileHandle &ixfileHandle) {
   headerPage = NULL;
   return rootID;
 }
+
 
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
 {
@@ -242,6 +264,7 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle,
 }
 
 void IndexManager::printBtree(IXFileHandle &ixfileHandle, const Attribute &attribute) const {
+
 }
 
 IX_ScanIterator::IX_ScanIterator()
@@ -410,6 +433,22 @@ int IntermediateEntry::getKeyOffset(){
 
 int IntermediateEntry::getRIDOffset(){
 	return sizeof(leftPtr) + key->getKeySize();
+}
+
+LeafEntry::LeafEntry(char* entry, AttrType aType): Entry(entry, aType){
+}
+
+RID LeafEntry::getSiblingPtr(){
+	memcpy(&siblingPtr, this->entry + key->getKeySize() + sizeof(rid), sizeof(siblingPtr));
+	return siblingPtr;
+}
+
+int LeafEntry::getKeyOffset(){
+	return 0;
+}
+
+int LeafEntry::getRIDOffset(){
+	return key->getKeySize();
 }
 
 EntryComparator::~EntryComparator(){
