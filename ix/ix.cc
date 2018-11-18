@@ -166,8 +166,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 
 	char* leafEntryBuf = (char*) malloc(PAGE_SIZE);
 	r_slot entrySize = prepareLeafEntry(leafEntryBuf,key, rid, attribute);
-	Entry leafEntry(leafEntryBuf, attribute.type);
-
+    LeafEntry *leafEntry = new LeafEntry(leafEntryBuf, attribute.type);
 
 	PageNum rootPageId = getRootPageID(ixfileHandle);
 	char* pageData = (char*) malloc(PAGE_SIZE);
@@ -186,7 +185,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 			btPg->readEntry(islot, entry);
 			ptrIEntry = new IntermediateEntry (entry, attribute.type);
 			IntermediateComparator iComp;
-			if(iComp.compare(*ptrIEntry, leafEntry) > 0){ // if entry in node greater than leaf entry
+			if(iComp.compare(*ptrIEntry, *leafEntry) > 0){ // if entry in node greater than leaf entry
 				break;
 
 			}
@@ -224,7 +223,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 			btPg->readEntry(islot, entry);
 			islot++;
 			Entry pageLeafEntry(entry, attribute.type);
-			if(icomp.compare(leafEntry, pageLeafEntry) > 0){
+			if(icomp.compare(*leafEntry, pageLeafEntry) > 0){
 				slotFound = true;
 				break;
 			}
@@ -243,7 +242,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle, const Attribute &attrib
 
 	}
 
-	return -1;
+	return 1;
 }
 
 RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid)
@@ -480,11 +479,11 @@ BTPage::BTPage(const char *pageData, const Attribute &attribute) {
   //	pageBuffer = pageData;
   pageBuffer = (char *)malloc(PAGE_SIZE);
   memcpy(pageBuffer, pageData, PAGE_SIZE);
-  readAttribute(attribute);
-  readPageType();
-  readSiblingNode();
-  readPageRecordInfo();
-  readSlotDirectory();
+  setAttribute(attribute);
+  setPageType();
+  setSiblingNode();
+  setPageRecordInfo();
+  setSlotDirectory();
 }
 
 void BTPage::readAttribute(const Attribute &attribute) {
@@ -571,6 +570,10 @@ setSlotDirectory();
 
 return success;
 
+}
+
+void BTPage::setAttribute(const Attribute &attr){
+	memcpy(&attribute, &attr, sizeof(attr));
 }
 
 void BTPage::setPageType(){
