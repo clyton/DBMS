@@ -607,6 +607,7 @@ readPageRecordInfo();
 readSlotDirectory();
 }
 
+
 void BTPage::readAttribute(const Attribute &attribute) {
 this->attribute = attribute;
 }

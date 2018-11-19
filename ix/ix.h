@@ -186,6 +186,16 @@ private:
 
 };
 
+class LeafEntry : public Entry{
+public:
+	RID getSiblingPtr();
+	LeafEntry(char* entry, AttrType aType);
+	int getKeyOffset();
+	int getRIDOffset();
+private:
+	RID siblingPtr;
+};
+
 class EntryComparator{
 public:
 	virtual int compare(Entry a , Entry b) = 0;
