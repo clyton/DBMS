@@ -10,11 +10,20 @@
 
 class IX_ScanIterator;
 class IXFileHandle;
+struct SplitInfo;
+class IntermediateComparator;
+class IntermediateEntry;
+class Entry;
+class BTPage;
+
+enum BTPageType { INTERMEDIATE = 1, LEAF = 0 };
 
 class IndexManager {
 
     public:
         static IndexManager* instance();
+
+        RC setRootPage(IXFileHandle &ixfileHandle, PageNum rootPageID);
 
         // Create an index file.
         RC createFile(const string &fileName);
@@ -58,7 +67,9 @@ class IndexManager {
 
     private:
       RC setUpIndexFile(IXFileHandle &ixfileHandle, const Attribute &attribute);
-      PageNum getRootPageID(IXFileHandle &ixfileHandle);
+      PageNum getRootPageID(IXFileHandle &ixfileHandle) const;
+	char* prepareEmptyBTPageBuffer(int offset);
+	void printBtree(BTPage* root) const;
 };
 
 
@@ -143,11 +154,14 @@ public:
 class Entry{
 public:
 	Entry(char* entry, AttrType aType);
+	static Entry* getEntry(char* entry, AttrType aType, BTPageType pageType);
 	virtual Key* getKey();
 	virtual RID getRID();
+	virtual r_slot getEntrySize();
 	virtual int getKeyOffset();
 	virtual int getRIDOffset();
 	virtual ~Entry();
+	char* getEntryBuffer();
 protected:
 	char* entry;
 	AttrType aType;
@@ -162,6 +176,9 @@ public:
 	IntermediateEntry(char* entry, AttrType aType);
 	int getKeyOffset();
 	int getRIDOffset();
+	r_slot getEntrySize();
+	void setLeftPtr(PageNum lPg);
+	void setRightPtr(PageNum rPg);
 private:
 	PageNum leftPtr = 0;
 	PageNum rightPtr = 0;
@@ -187,7 +204,6 @@ public:
 };
 
 
-enum BTPageType { INTERMEDIATE = 1, LEAF = 0 };
 
 /**
  * Page Format for BTPage :
@@ -215,6 +231,8 @@ class BTPage {
   BTPageType getPageType();
   r_slot getFreeSpaceAvailable();
   bool isSpaceAvailableToInsertEntryOfSize(r_slot size);
+  static void prepareEmptyBTPageBuffer(char* pageBuffer, BTPageType pageType);
+  void setSiblingNode(PageNum siblingPgNum);  // copy sibling pointer to page buffer
 
   /**
    * Inserts entry buf in BTPage at freespace pointer and stores its
@@ -225,30 +243,33 @@ class BTPage {
    * @param length : length of the char buffer.
    * @return
    */
-  RC insertEntry(char *entry, int slotNumber, int length);
-  RC getEntry(r_slot slotNum, char *buf);  // same as readEntry()
-  RC removeEntry(int slotNumber, char* entryBuf);
-  RC readEntry(r_slot slotNum, char *buf);
+  RC insertEntryInOrder(Entry& entry);
+  RC insertEntry(const char *const entry, int slotNumber, int length);
+  RC getEntry(r_slot slotNum, char * const buf);  // same as readEntry()
+  RC removeEntry(int slotNumber, char * const entryBuf);
+  RC readEntry(r_slot slotNum, char * const buf);
   char *getPage();
   int getNumberOfSlots();
+  SplitInfo* splitNodes(Entry &insertEntry, EntryComparator &comparator);
 
 
  private:
   // The read methods will read the pageBuffer into data members
+  const static PageNum NULL_PAGE = UINT_MAX;
   void readPageType();
   void readAttribute(const Attribute &attribute);
   void readPageRecordInfo();
   void readSlotDirectory();
   void readSiblingNode();
+  RC appendEntry(const char *const entry, int length);
   // r_slot getSmallestEntryGreaterThan(char* key, KeyComparator const* key);
   void copySlotsToPage(vector<SlotDirectory> slots, char *pageBuffer);
 
   // The set methods will update the pageBuffer*
-  void setPageType(); // copy pType to pageBuffer
+  void setPageType(BTPageType pgType); // copy pType to pageBuffer
   void setAttribute(const Attribute &attribute);
   void setPageRecordInfo(); // copy pri to page buffer
   void setSlotDirectory(); //copy the slots vector to page buffer
-  void setSiblingNode();  // copy sibling pointer to page buffer
   void printPage();
 
   RC shiftRecord(char *pageData, r_slot slotToShiftOffset, int byBytesToShift);
@@ -262,6 +283,13 @@ class BTPage {
   Attribute attribute;
   const int success = 0;
   const int failure = 1;
+};
+
+struct SplitInfo{
+	BTPage* leftChild;
+	BTPage* rightChild;
+	IntermediateEntry* iEntryParent;
+
 };
 
 #endif
