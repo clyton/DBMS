@@ -267,6 +267,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 			if (btPg->isSpaceAvailableToInsertEntryOfSize(
 					splitEntry->getEntrySize())) {
 				btPg->insertEntryInOrder(*splitEntry);
+				ixfileHandle.fileHandle.writePage(pageNum, btPg->getPage());
 				exitWithoutSplit = true;
 				break;
 			}
@@ -855,6 +856,7 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 // num when the right child will be inserted in the page
 	split->rightChild->setSiblingNode(this->siblingPage);
 
+	bool entryInserted = false;
 	Entry *slotEntry = NULL;
 	BTPage *pageToLoad = split->leftChild; // ptr to current page getting loaded
 	for (uint islot = 0; islot < slots.size(); islot++) {
@@ -877,6 +879,7 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 			// insert the smaller entry first
 			pageToLoad->appendEntry(insertEntry.getEntryBuffer(),
 					insertEntry.getEntrySize());
+			entryInserted = true;
 		}
 
 		pageToLoad->appendEntry(slotEntry->getEntryBuffer(),
@@ -884,6 +887,11 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 
 		delete slotEntry;
 		free(entryBuf);
+	}
+	if(!entryInserted){
+			pageToLoad->appendEntry(insertEntry.getEntryBuffer(),
+					insertEntry.getEntrySize());
+			entryInserted = true;
 	}
 
 // prepare the intermediate node to push up
@@ -962,10 +970,9 @@ RC BTPage::insertEntryInOrder(Entry& entry) {
 	char* entryBuf = (char*) malloc(PAGE_SIZE);
 	bool slotFound = false;
 	while (islot < numberOfSlots) {
-		this->readEntry(islot, entryBuf);
+		Entry *pageLeafEntry = getEntry(islot);
 		islot++;
-		Entry pageLeafEntry(entryBuf, attribute.type);
-		if (icomp.compare(pageLeafEntry, entry) > 0) {
+		if (icomp.compare(*pageLeafEntry, entry) > 0) {
 			slotFound = true;
 			break;
 		}
@@ -993,6 +1000,7 @@ void IndexManager::printBtree(IXFileHandle &ixfileHande, BTPage* root) const {
 		ixfileHande.fileHandle.readPage(entry->getRightPtr(), pageBuffer);
 		printBtree(ixfileHande, new BTPage(pageBuffer, root->getAttribute()));
 		}
+		printf("]}");
 	}
 	else {
 		printf(R"( { "keys" : [%s] } )", root->toString().c_str());
