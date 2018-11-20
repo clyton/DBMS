@@ -69,7 +69,7 @@ class IndexManager {
       RC setUpIndexFile(IXFileHandle &ixfileHandle, const Attribute &attribute);
       PageNum getRootPageID(IXFileHandle &ixfileHandle) const;
 	char* prepareEmptyBTPageBuffer(int offset);
-	void printBtree(BTPage* root) const;
+	void printBtree(IXFileHandle &ixfileHandle, BTPage* root) const;
 };
 
 
@@ -118,6 +118,7 @@ public:
 	virtual r_slot getKeySize() = 0;
 	virtual ~Key();
 	virtual int compare(Key& other) = 0;
+	virtual string toString() = 0;
 };
 
 class StringKey : public Key{
@@ -129,6 +130,7 @@ public:
 	r_slot getKeySize() ;
 	int compare(Key& other);
 	string getData();
+	string toString();
 };
 
 class IntKey : public Key{
@@ -139,6 +141,7 @@ public:
 	r_slot getKeySize() ;
 	int compare(Key& other);
 	int getData();
+	string toString();
 };
 
 class FloatKey : public Key{
@@ -149,6 +152,7 @@ public:
 	r_slot getKeySize() ;
 	 int compare(Key& other);
 	float getData();
+	string toString();
 };
 
 class Entry{
@@ -162,6 +166,7 @@ public:
 	virtual int getRIDOffset();
 	virtual ~Entry();
 	char* getEntryBuffer();
+	virtual string toString();
 protected:
 	char* entry;
 	AttrType aType;
@@ -179,6 +184,7 @@ public:
 	r_slot getEntrySize();
 	void setLeftPtr(PageNum lPg);
 	void setRightPtr(PageNum rPg);
+	string toString();
 private:
 	PageNum leftPtr = 0;
 	PageNum rightPtr = 0;
@@ -188,7 +194,7 @@ private:
 
 class LeafEntry : public Entry{
 public:
-	RID getSiblingPtr();
+//	RID getSiblingPtr();
 	LeafEntry(char* entry, AttrType aType);
 	int getKeyOffset();
 	int getRIDOffset();
@@ -243,6 +249,7 @@ class BTPage {
   bool isSpaceAvailableToInsertEntryOfSize(r_slot size);
   static void prepareEmptyBTPageBuffer(char* pageBuffer, BTPageType pageType);
   void setSiblingNode(PageNum siblingPgNum);  // copy sibling pointer to page buffer
+  PageNum getSiblingNode();
 
   /**
    * Inserts entry buf in BTPage at freespace pointer and stores its
@@ -262,11 +269,13 @@ class BTPage {
   char *getPage();
   int getNumberOfSlots();
   SplitInfo* splitNodes(Entry &insertEntry, EntryComparator &comparator);
+  Attribute getAttribute();
+  const static PageNum NULL_PAGE = UINT_MAX;
+  string toString();
 
 
  private:
   // The read methods will read the pageBuffer into data members
-  const static PageNum NULL_PAGE = UINT_MAX;
   void readPageType();
   void readAttribute(const Attribute &attribute);
   void readPageRecordInfo();

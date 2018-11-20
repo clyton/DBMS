@@ -1,14 +1,16 @@
 #include "ix.h"
-
 #include <float.h>
-#include <stdlib.h>
+#include <sys/types.h>
 #include <cassert>
 #include <climits>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <iterator>
 #include <stack>
+#include <string>
 
 #include "../rbf/pfm.h"
 
@@ -361,7 +363,7 @@ void IndexManager::printBtree(IXFileHandle &ixfileHandle,
 	ixfileHandle.fileHandle.readPage(rootPageID, pageData);
 	BTPage btPage(pageData, attribute);
 
-	printBtree(&btPage);
+	printBtree(ixfileHandle, &btPage);
 	/*
 	 * {
 	 "keys":["P"],
@@ -911,7 +913,7 @@ RC BTPage::appendEntry(const char * const entry, int length) {
 	copySlotsToPage(slots, pageBuffer);
 
 	updatePageRecordInfo(pri, pageBuffer);
-
+	return success;
 }
 
 r_slot Entry::getEntrySize() {
@@ -964,9 +966,50 @@ char* BTPage::getPage() {
 	return this->pageBuffer;
 }
 
-void IndexManager::printBtree(BTPage* root) const {
+void IndexManager::printBtree(IXFileHandle &ixfileHande, BTPage* root) const {
 
-//	printf(R"( { "keys" : ["%s"], )", root->ge)
+	if (root->getPageType() == INTERMEDIATE){
+		printf(R"( { "keys" : [%s], "children" : [ )", root->toString());
+		IntermediateEntry *entry;
+		char* pageBuffer = (char*) malloc(PAGE_SIZE);
+		for (int i=0; i<root->getNumberOfSlots(); i++){
+			entry = dynamic_cast<IntermediateEntry*>(root->getEntry(i));
+			ixfileHande.fileHandle.readPage(entry->getLeftPtr(), pageBuffer);
+			printBtree(ixfileHande, new BTPage(pageBuffer, root->getAttribute()));
+		}
+		if (root->getNumberOfSlots() != 0){
+		ixfileHande.fileHandle.readPage(entry->getRightPtr(), pageBuffer);
+		printBtree(ixfileHande, new BTPage(pageBuffer, root->getAttribute()));
+		}
+	}
+	else {
+		printf(R"( { "keys" : [%s] } )", root->toString());
+		// if not last page in tree
+		if (root->getSiblingNode() != BTPage::NULL_PAGE) {
+			printf(",");
+		}
+	}
+
+	/*
+	 * {
+	 "keys":["P"],
+	 "children":[
+	 {"keys":["C","G","M"],
+	 "children": [
+	 {"keys": ["A:[(1,1),(1,2)]","B:[(2,1),(2,2)]"]},
+	 {"keys": ["D:[(3,1),(3,2)]","E:[(4,1)]","F:[(5,1)]"]},
+	 {"keys": ["J:[(5,1),(5,2)]","K:[(6,1),(6,2)]","L:[(7,1)]"]},
+	 {"keys": ["N:[(8,1)]","O:[(9,1)]"]}
+	 ]},
+	 {"keys":["T","X"],
+	 "children": [
+	 {"keys": ["Q:[(10,1)]","R:[(11,1)]","S:[(12,1)]"]},
+	 {"keys": ["U:[(13,1)]","V:[(14,1)]"]},
+	 {"keys": ["Y:[(15,1)]","Z:[(16,1)]"]}
+	 ]}
+	 ]
+	 }
+	 */
 }
 
 Entry* BTPage::getEntry(r_slot slotNum) {
@@ -981,4 +1024,53 @@ Entry* BTPage::getEntry(r_slot slotNum) {
 
 	return slotEntry;
 
+}
+
+Attribute BTPage::getAttribute(){
+	return attribute;
+}
+
+PageNum BTPage::getSiblingNode(){
+	return this->siblingPage;
+}
+
+string BTPage::toString(){
+
+string stringEntries = "";
+for(int i=0; i<slots.size(); i++){
+	string sEntry = "\"" +  getEntry(i)->toString() + "\"";
+	stringEntries = stringEntries +   sEntry ;
+	if (i!=slots.size() - 1){
+		stringEntries = stringEntries + ",";
+	}
+}
+
+return stringEntries;
+
+}
+
+string Entry::toString(){
+string sEntry;
+
+sEntry = "\"" + key->toString() + ": [("  +
+		std::to_string(rid.pageNum) + "," +
+		std::to_string(rid.slotNum) + ")]\"";
+
+return sEntry;
+}
+
+string IntermediateEntry::toString(){
+	return key->toString();
+}
+
+string FloatKey::toString(){
+	return std::to_string(getData());
+}
+
+string IntKey::toString(){
+	return std::to_string(getData());
+}
+
+string StringKey::toString(){
+	return getData();
 }
