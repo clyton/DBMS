@@ -242,6 +242,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 //		}
 //		btPg->insertEntry(leafEntryBuf, islot, entrySize);
 		btPg->insertEntryInOrder(leafEntry);
+		ixfileHandle.fileHandle.writePage(currentPageNum, btPg->getPage());
 	} else {
 		// space not available then split
 		// and pop out the pageID from traversalStack and repeat
@@ -456,11 +457,16 @@ Entry::~Entry() {
 	}
 }
 Key* Entry::getKey() {
+	if (isKeyDataSet){
+		return key;
+	}
 	int offset = getKeyOffset();
 	return key->setKeyData(entry, offset);
+	isKeyDataSet = true;
 }
 RID Entry::getRID() {
 	int offset = getRIDOffset();
+	RID rid;
 	memcpy(&rid, entry + offset, sizeof(rid));
 	return rid;
 }
@@ -561,7 +567,7 @@ PageNum IntermediateEntry::getLeftPtr() {
 
 PageNum IntermediateEntry::getRightPtr() {
 	memcpy(&rightPtr,
-			this->entry + sizeof(leftPtr) + key->getKeySize() + sizeof(rid),
+			this->entry + sizeof(leftPtr) + getKey()->getKeySize() + sizeof(getRID()),
 			sizeof(rightPtr));
 	return rightPtr;
 }
@@ -571,7 +577,7 @@ int IntermediateEntry::getKeyOffset() {
 }
 
 int IntermediateEntry::getRIDOffset() {
-	return sizeof(leftPtr) + key->getKeySize();
+	return sizeof(leftPtr) + getKey()->getKeySize();
 }
 
 EntryComparator::~EntryComparator() {
@@ -918,11 +924,11 @@ RC BTPage::appendEntry(const char * const entry, int length) {
 
 r_slot Entry::getEntrySize() {
 
-	return key->getKeySize() + sizeof(rid);
+	return getKey()->getKeySize() + sizeof(getRID());
 }
 
 r_slot IntermediateEntry::getEntrySize() {
-	return sizeof(leftPtr) + key->getKeySize() + sizeof(rid) + sizeof(rightPtr);
+	return sizeof(leftPtr) + getKey()->getKeySize() + sizeof(getRID()) + sizeof(rightPtr);
 }
 
 char* Entry::getEntryBuffer() {
@@ -935,7 +941,7 @@ void IntermediateEntry::setLeftPtr(PageNum lPg) {
 }
 void IntermediateEntry::setRightPtr(PageNum rPg) {
 	rightPtr = rPg;
-	int rightPointerOffset = sizeof(leftPtr) + key->getKeySize() + sizeof(rid);
+	int rightPointerOffset = sizeof(leftPtr) + getKey()->getKeySize() + sizeof(getRID());
 	memcpy(entry + rightPointerOffset, &rPg, sizeof(rPg));
 }
 
@@ -969,7 +975,7 @@ char* BTPage::getPage() {
 void IndexManager::printBtree(IXFileHandle &ixfileHande, BTPage* root) const {
 
 	if (root->getPageType() == INTERMEDIATE){
-		printf(R"( { "keys" : [%s], "children" : [ )", root->toString());
+		printf(R"( { "keys" : [%s], "children" : [ )", root->toString().c_str());
 		IntermediateEntry *entry;
 		char* pageBuffer = (char*) malloc(PAGE_SIZE);
 		for (int i=0; i<root->getNumberOfSlots(); i++){
@@ -983,7 +989,7 @@ void IndexManager::printBtree(IXFileHandle &ixfileHande, BTPage* root) const {
 		}
 	}
 	else {
-		printf(R"( { "keys" : [%s] } )", root->toString());
+		printf(R"( { "keys" : [%s] } )", root->toString().c_str());
 		// if not last page in tree
 		if (root->getSiblingNode() != BTPage::NULL_PAGE) {
 			printf(",");
@@ -1052,15 +1058,15 @@ return stringEntries;
 string Entry::toString(){
 string sEntry;
 
-sEntry = "\"" + key->toString() + ": [("  +
-		std::to_string(rid.pageNum) + "," +
-		std::to_string(rid.slotNum) + ")]\"";
+sEntry = "\"" + getKey()->toString() + ": [("  +
+		std::to_string(getRID().pageNum) + "," +
+		std::to_string(getRID().slotNum) + ")]\"";
 
 return sEntry;
 }
 
 string IntermediateEntry::toString(){
-	return key->toString();
+	return getKey()->toString();
 }
 
 string FloatKey::toString(){

@@ -167,11 +167,14 @@ public:
 	virtual ~Entry();
 	char* getEntryBuffer();
 	virtual string toString();
+private:
+	Key *key;
+	bool isKeyDataSet = false;
 protected:
 	char* entry;
 	AttrType aType;
-	Key *key;
-	RID rid;
+//	Key *key;
+//	RID rid;
 };
 
 class IntermediateEntry : public Entry{
