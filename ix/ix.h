@@ -84,7 +84,9 @@ class IX_ScanIterator {
         bool lowKeyInclusive;
         bool highKeyInclusive;
         Entry* nextLeafEntry;
+        Entry* highLeafEntry;
         int isEOF;
+        BTPage* btPg;
 
 
 		// Constructor
@@ -267,6 +269,7 @@ class BTPage {
   RC removeEntry(int slotNumber, char * const entryBuf);
   RC readEntry(r_slot slotNum, char * const buf);
   char *getPage();
+  r_slot getSiblingPageNum();
   int getNumberOfSlots();
   SplitInfo* splitNodes(Entry &insertEntry, EntryComparator &comparator);
 

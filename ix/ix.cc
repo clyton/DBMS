@@ -359,7 +359,7 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
         ix_ScanIterator.highKeyInclusive = highKeyInclusive;
 
         BTPage *btPg = NULL;
-        LeafEntry *leafEntry = NULL;
+        Entry *leafEntry = NULL;
 		PageNum rootPageId = getRootPageID(ixfileHandle);
 		char* pageData = (char*) malloc(PAGE_SIZE);
 		ixfileHandle.fileHandle.readPage(rootPageId, pageData);
@@ -370,56 +370,53 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
         {
             char* lowKeyLeafEntryBuf = (char*) malloc(PAGE_SIZE);
             RID lowKeyRID;
-            lowKeyRID.pageNum = USHRT_MAX;
+            lowKeyRID.pageNum = USHRT_MAX;//TODO: Confirm if this is correct
             lowKeyRID.slotNum = USHRT_MAX; 
             r_slot entrySize = prepareLeafEntry(lowKeyLeafEntryBuf, lowKey, lowKeyRID, attribute);
-            leafEntry = new LeafEntry(lowKeyLeafEntryBuf, attribute.type);
+            leafEntry = new Entry(lowKeyLeafEntryBuf, attribute.type);
         }
 
 		while(btPg->getPageType() != BTPageType::LEAF){
-				r_slot islot;
-				IntermediateEntry *ptrIEntry = NULL;
-				for ( islot = 0; islot < btPg->getNumberOfSlots(); islot++){
-					memset(entry,0,PAGE_SIZE);
-					btPg->readEntry(islot, entry);
-					ptrIEntry = new IntermediateEntry (entry, attribute.type);
-					IntermediateComparator iComp;
-					if(leafEntry == 0 || iComp.compare(*ptrIEntry, *leafEntry) > 0){ // if entry in node greater than leaf entry
-						break;
-					}
-					delete[] ptrIEntry;
+			r_slot islot;
+			IntermediateEntry *ptrIEntry = NULL;
+			for ( islot = 0; islot < btPg->getNumberOfSlots(); islot++){
+				memset(entry,0,PAGE_SIZE);
+				btPg->readEntry(islot, entry);
+				ptrIEntry = new IntermediateEntry (entry, attribute.type);
+				IntermediateComparator iComp;
+				if(leafEntry == 0 || iComp.compare(*ptrIEntry, *leafEntry) > 0){ // if entry in node greater than leaf entry
+					break;
 				}
-				if (islot < btPg->getNumberOfSlots()){ // islot in range
-					pgToTraverse = ptrIEntry->getLeftPtr();
-				}
-				else{ 
-					pgToTraverse = ptrIEntry->getRightPtr();
-				}
-				if(btPg) delete[] btPg;
-				memset(pageData,0, PAGE_SIZE);
-				ixfileHandle.fileHandle.readPage(pgToTraverse, pageData);
-				btPg = new BTPage(pageData, attribute);
 				delete ptrIEntry;
 			}
+			if (islot < btPg->getNumberOfSlots()){ // islot in range
+				pgToTraverse = ptrIEntry->getLeftPtr();
+			}
+			else{ 
+				pgToTraverse = ptrIEntry->getRightPtr();
+			}
+			if(btPg) delete btPg;
+			memset(pageData,0, PAGE_SIZE);
+			ixfileHandle.fileHandle.readPage(pgToTraverse, pageData);
+			btPg = new BTPage(pageData, attribute);
+			delete ptrIEntry;
+		}
 
-        r_slot islot = 0;
-        r_slot numberOfSlots = btPg->getNumberOfSlots();
-        IntermediateComparator icomp;
-        bool slotFound = false;
-        //char* entry = (char*) malloc(PAGE_SIZE);
-        while(islot < numberOfSlots){
-            btPg->readEntry(islot, entry);
-            islot++;
-            LeafEntry *pageLeafEntry = new LeafEntry(entry, attribute.type);
-            if(leafEntry == 0 || icomp.compare(*leafEntry, *pageLeafEntry) > 0){
-                slotFound = true;
-                break;
-            }
-        }
-        if(!lowKeyInclusive)
-            if(islot < numberOfSlots)
-                btPg->readEntry(islot++, entry);
-        ix_ScanIterator.nextLeafEntry = new LeafEntry(entry, attribute.type);
+		ix_ScanIterator.btPg = btPg;
+
+        ix_ScanIterator.nextLeafEntry = leafEntry;
+
+		Entry* highLeafEntry = 0;
+		if(highKey)
+		{
+			char* highKeyLeafEntryBuf = (char*) malloc(PAGE_SIZE);
+            RID highKeyRID;
+            highKeyRID.pageNum = USHRT_MAX;
+            highKeyRID.slotNum = USHRT_MAX; 
+            r_slot entrySize = prepareLeafEntry(highKeyLeafEntryBuf, highKey, highKeyRID, attribute);
+            highLeafEntry = new Entry(highKeyLeafEntryBuf, attribute.type);
+		}
+		ix_ScanIterator.highLeafEntry = highLeafEntry;
 
 		free(pageData);
 		free(entry);
@@ -460,23 +457,70 @@ void IndexManager::printBtree(IXFileHandle &ixfileHandle,
 }
 
 IX_ScanIterator::IX_ScanIterator() {
-    ixfileHandle = NULL;
-    lowKey = NULL;
-    highKey = NULL;
+    ixfileHandle = 0;
+    lowKey = 0;
+    highKey = 0;
     lowKeyInclusive = false;
     highKeyInclusive = false;
     attribute.name = "";
     attribute.type = TypeInt;
     attribute.length = 0;
-    nextLeafEntry = NULL;
+    nextLeafEntry = 0;
+	highLeafEntry = 0;
     isEOF = 0;
+	btPg = 0;
 }
 
 IX_ScanIterator::~IX_ScanIterator() {
 }
 
 RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
-    
+
+	bool entryFound = false;
+	char* entry = (char*) malloc(PAGE_SIZE);
+	while(!entryFound && isEOF!=IX_EOF)
+	{
+		r_slot islot = 0;
+		r_slot numberOfSlots = btPg->getNumberOfSlots();
+		LeafComparator lcomp;
+		while(islot < numberOfSlots)
+		{
+			btPg->readEntry(islot, entry);
+			islot++;
+			LeafEntry *pageLeafEntry = new LeafEntry(entry, attribute.type);
+			bool isLowerMatch = lowKeyInclusive ? lcomp.compare(*nextLeafEntry, *pageLeafEntry) >= 0 : lcomp.compare(*nextLeafEntry, *pageLeafEntry) > 0;
+			bool isHigherMatch = highKeyInclusive ? lcomp.compare(*highLeafEntry, *pageLeafEntry) <= 0 : lcomp.compare(*highLeafEntry, *pageLeafEntry) < 0;
+			if((nextLeafEntry == 0 || isLowerMatch) && (highLeafEntry == 0 || isHigherMatch))
+			{
+				entryFound = true;
+				break;
+			}
+		}
+
+		if(!entryFound)
+		{
+			r_slot siblingPageNum = btPg->getSiblingPageNum();
+			
+			char* pageData = (char*) malloc(PAGE_SIZE);
+			ixfileHandle->fileHandle.readPage(siblingPageNum, pageData);
+			btPg = new BTPage(pageData, attribute);
+		}	
+	}
+	
+	if(entryFound)
+	{
+		Entry hitEntry(entry, attribute.type);
+		rid = hitEntry.getRID();
+		Key* hitKey = hitEntry.getKey();
+		r_slot keySize = hitKey->getKeySize();
+		r_slot keyOffset = hitEntry.getKeyOffset();
+		memcpy(key, entry + keyOffset, keySize);
+		nextLeafEntry = new Entry(entry, attribute.type);
+		return 0;
+	}
+
+	return -1;
+
 }
 
 RC IX_ScanIterator::close() {
@@ -1048,6 +1092,10 @@ return success;
 
 char* BTPage::getPage(){
 	return this->pageBuffer;
+}
+
+r_slot BTPage::getSiblingPageNum(){
+	return this->siblingPage;
 }
 
 void IndexManager::printBtree(BTPage* root) const {
