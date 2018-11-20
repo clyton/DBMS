@@ -256,6 +256,7 @@ class BTPage {
   RC insertEntryInOrder(Entry& entry);
   RC insertEntry(const char *const entry, int slotNumber, int length);
   RC getEntry(r_slot slotNum, char * const buf);  // same as readEntry()
+  Entry* getEntry(r_slot slotNum);
   RC removeEntry(int slotNumber, char * const entryBuf);
   RC readEntry(r_slot slotNum, char * const buf);
   char *getPage();
