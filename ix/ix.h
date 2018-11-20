@@ -291,7 +291,7 @@ class BTPage {
   void readSiblingNode();
   RC appendEntry(const char *const entry, int length);
   // r_slot getSmallestEntryGreaterThan(char* key, KeyComparator const* key);
-  void copySlotsToPage(vector<SlotDirectory> slots, char *pageBuffer);
+  void copySlotsToPage(vector<SlotDirectory> &slots, char *pageBuffer);
 
   // The set methods will update the pageBuffer*
   void setPageType(BTPageType pgType); // copy pType to pageBuffer

@@ -203,7 +203,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 				break;
 
 			}
-			delete ptrIEntry;
+//			delete ptrIEntry;
 		}
 		if (islot < btPg->getNumberOfSlots()) { // islot in range
 			currentPageNum = ptrIEntry->getLeftPtr();
@@ -218,7 +218,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 
 		}
 		if (btPg)
-			delete[] btPg;
+			delete btPg;
 		memset(pageData, 0, PAGE_SIZE);
 		ixfileHandle.fileHandle.readPage(currentPageNum, pageData);
 		btPg = new BTPage(pageData, attribute);
@@ -269,6 +269,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 			if (btPg->isSpaceAvailableToInsertEntryOfSize(
 					splitEntry->getEntrySize())) {
 				btPg->insertEntryInOrder(*splitEntry);
+				ixfileHandle.fileHandle.writePage(pageNum, btPg->getPage());
 				exitWithoutSplit = true;
 				break;
 			}
@@ -280,7 +281,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 			// pointer in the split nodes method. So directly write this page to disk
 			// don't move these lines. they need to be together
 			ixfileHandle.fileHandle.appendPage(split->rightChild->getPage());
-			PageNum rPg = ixfileHandle.fileHandle.getNumberOfPages();
+			PageNum rPg = ixfileHandle.fileHandle.getNumberOfPages() - 1;
 
 			// store left's sibling as right page and write it to disk at its
 			// old page number
@@ -304,8 +305,8 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 			btPg = new BTPage(intermediateRootPageBuffer, attribute);
 			btPg->insertEntryInOrder(*splitEntry);
 
-			ixfileHandle.fileHandle.appendPage(splitEntry->getEntryBuffer());
-			PageNum pNum = ixfileHandle.fileHandle.getNumberOfPages();
+			ixfileHandle.fileHandle.appendPage(btPg->getPage());
+			PageNum pNum = ixfileHandle.fileHandle.getNumberOfPages() - 1;
 			setRootPage(ixfileHandle, pNum);
 		}
 
@@ -592,17 +593,16 @@ Entry* Entry::getEntry(char* entry, AttrType aType, BTPageType pageType) {
 }
 
 Entry::~Entry() {
-	if (key) {
-		delete key;
-	}
+
 }
 Key* Entry::getKey() {
 	if (isKeyDataSet){
 		return key;
 	}
 	int offset = getKeyOffset();
-	return key->setKeyData(entry, offset);
-	isKeyDataSet = true;
+isKeyDataSet = true;
+return key->setKeyData(entry, offset);
+
 }
 RID Entry::getRID() {
 	int offset = getRIDOffset();
@@ -784,7 +784,9 @@ void BTPage::readSlotDirectory() {
 }
 
 bool BTPage::isSpaceAvailableToInsertEntryOfSize(r_slot length) {
-	unsigned freeSpaceAvailable = PAGE_SIZE - pri.freeSpacePos;
+	unsigned freeSpaceAvailable = PAGE_SIZE - pri.freeSpacePos
+			- slots.size() * sizeof(struct SlotDirectory)
+			- sizeof(struct PageRecordInfo);
 	if (freeSpaceAvailable >= length + sizeof(struct SlotDirectory)) {
 		return true;
 	} else
@@ -812,11 +814,14 @@ RC BTPage::insertEntry(const char * const entry, int slotNumber, int length) {
 	return success;
 }
 
-void BTPage::copySlotsToPage(vector<SlotDirectory> slots, char *pageBuffer) {
-	memcpy(
-			pageBuffer + PAGE_SIZE - sizeof(pri)
-					- sizeof(struct SlotDirectory) * slots.size(), slots.data(),
-			slots.size() * sizeof(struct SlotDirectory));
+void BTPage::copySlotsToPage(vector<SlotDirectory> &slots, char *pageBuffer) {
+	for (int i=0; i<slots.size(); i++){
+		updateSlotDirectory(RID{0,i}, pageBuffer, slots[i]);
+	}
+//	memcpy(
+//			pageBuffer + PAGE_SIZE - sizeof(pri)
+//					- sizeof(struct SlotDirectory) * slots.size(), slots.data(),
+//			slots.size() * sizeof(struct SlotDirectory));
 }
 /**
  * soft deletes the entry from the page and returns the
@@ -875,10 +880,11 @@ void BTPage::setSlotDirectory() {
 		cout << "BTPage::setSlotDirectory() : Number of slots in slots vector "
 				<< slots.size();
 	}
-	memcpy(
-			pageBuffer + PAGE_SIZE - sizeof(pri)
-					- sizeof(struct SlotDirectory) * slots.size(), slots.data(),
-			slots.size() * sizeof(struct SlotDirectory));
+	copySlotsToPage(slots, pageBuffer);
+//	memcpy(
+//			pageBuffer + PAGE_SIZE - sizeof(pri)
+//					- sizeof(struct SlotDirectory) * slots.size(), slots.data(),
+//			slots.size() * sizeof(struct SlotDirectory));
 
 }
 
@@ -886,6 +892,7 @@ void BTPage::setSiblingNode(PageNum rightSiblingPgNum) {
 	int offset = sizeof(pageType);
 	memcpy(pageBuffer + offset, &(rightSiblingPgNum),
 			sizeof(rightSiblingPgNum));
+	siblingPage = rightSiblingPgNum;
 }
 
 void BTPage::printPage() {
@@ -989,6 +996,7 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 // num when the right child will be inserted in the page
 	split->rightChild->setSiblingNode(this->siblingPage);
 
+	bool entryInserted = false;
 	Entry *slotEntry = NULL;
 	BTPage *pageToLoad = split->leftChild; // ptr to current page getting loaded
 	for (uint islot = 0; islot < slots.size(); islot++) {
@@ -1011,13 +1019,19 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 			// insert the smaller entry first
 			pageToLoad->appendEntry(insertEntry.getEntryBuffer(),
 					insertEntry.getEntrySize());
+			entryInserted = true;
 		}
 
 		pageToLoad->appendEntry(slotEntry->getEntryBuffer(),
 				slots[islot].length);
 
-		delete[] slotEntry;
+		delete slotEntry;
 		free(entryBuf);
+	}
+	if(!entryInserted){
+			pageToLoad->appendEntry(insertEntry.getEntryBuffer(),
+					insertEntry.getEntrySize());
+			entryInserted = true;
 	}
 
 // prepare the intermediate node to push up
@@ -1096,10 +1110,9 @@ RC BTPage::insertEntryInOrder(Entry& entry) {
 	char* entryBuf = (char*) malloc(PAGE_SIZE);
 	bool slotFound = false;
 	while (islot < numberOfSlots) {
-		this->readEntry(islot, entryBuf);
+		Entry *pageLeafEntry = getEntry(islot);
 		islot++;
-		Entry pageLeafEntry(entryBuf, attribute.type);
-		if (icomp.compare(entry, pageLeafEntry) > 0) {
+		if (icomp.compare(*pageLeafEntry, entry) > 0) {
 			slotFound = true;
 			break;
 		}
@@ -1131,10 +1144,12 @@ void IndexManager::printBtree(IXFileHandle &ixfileHande, BTPage* root) const {
 		ixfileHande.fileHandle.readPage(entry->getRightPtr(), pageBuffer);
 		printBtree(ixfileHande, new BTPage(pageBuffer, root->getAttribute()));
 		}
+		printf("]}");
 	}
 	else {
 		printf(R"( { "keys" : [%s] } )", root->toString().c_str());
 		// if not last page in tree
+		cout << "" << endl;
 		if (root->getSiblingNode() != BTPage::NULL_PAGE) {
 			printf(",");
 		}
@@ -1202,9 +1217,9 @@ return stringEntries;
 string Entry::toString(){
 string sEntry;
 
-sEntry = "\"" + getKey()->toString() + ": [("  +
+sEntry = getKey()->toString() + ": [("  +
 		std::to_string(getRID().pageNum) + "," +
-		std::to_string(getRID().slotNum) + ")]\"";
+		std::to_string(getRID().slotNum) + ")]";
 
 return sEntry;
 }
