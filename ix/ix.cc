@@ -511,7 +511,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 		if(!entryFound)
 		{
 			PageNum siblingPageNum = btPg->getSiblingPageNum();
-			if(siblingPageNum == USHRT_MAX)
+			if(siblingPageNum == USHRT_MAX)//TODO: Check why UINT_MAX is 4294967295 and siblingPageNum value is 65535
 			{
 				isEOF = IX_EOF;
 				break;
