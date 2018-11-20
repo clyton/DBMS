@@ -201,7 +201,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 				break;
 
 			}
-			delete ptrIEntry;
+//			delete ptrIEntry;
 		}
 		if (islot < btPg->getNumberOfSlots()) { // islot in range
 			currentPageNum = ptrIEntry->getLeftPtr();
@@ -216,7 +216,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 
 		}
 		if (btPg)
-			delete[] btPg;
+			delete btPg;
 		memset(pageData, 0, PAGE_SIZE);
 		ixfileHandle.fileHandle.readPage(currentPageNum, pageData);
 		btPg = new BTPage(pageData, attribute);
@@ -278,7 +278,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 			// pointer in the split nodes method. So directly write this page to disk
 			// don't move these lines. they need to be together
 			ixfileHandle.fileHandle.appendPage(split->rightChild->getPage());
-			PageNum rPg = ixfileHandle.fileHandle.getNumberOfPages();
+			PageNum rPg = ixfileHandle.fileHandle.getNumberOfPages() - 1;
 
 			// store left's sibling as right page and write it to disk at its
 			// old page number
@@ -302,8 +302,8 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 			btPg = new BTPage(intermediateRootPageBuffer, attribute);
 			btPg->insertEntryInOrder(*splitEntry);
 
-			ixfileHandle.fileHandle.appendPage(splitEntry->getEntryBuffer());
-			PageNum pNum = ixfileHandle.fileHandle.getNumberOfPages();
+			ixfileHandle.fileHandle.appendPage(btPg->getPage());
+			PageNum pNum = ixfileHandle.fileHandle.getNumberOfPages() - 1;
 			setRootPage(ixfileHandle, pNum);
 		}
 
@@ -452,17 +452,16 @@ Entry* Entry::getEntry(char* entry, AttrType aType, BTPageType pageType) {
 }
 
 Entry::~Entry() {
-	if (key) {
-		delete key;
-	}
+
 }
 Key* Entry::getKey() {
 	if (isKeyDataSet){
 		return key;
 	}
 	int offset = getKeyOffset();
-	return key->setKeyData(entry, offset);
-	isKeyDataSet = true;
+isKeyDataSet = true;
+return key->setKeyData(entry, offset);
+
 }
 RID Entry::getRID() {
 	int offset = getRIDOffset();
@@ -672,11 +671,14 @@ RC BTPage::insertEntry(const char * const entry, int slotNumber, int length) {
 	return success;
 }
 
-void BTPage::copySlotsToPage(vector<SlotDirectory> slots, char *pageBuffer) {
-	memcpy(
-			pageBuffer + PAGE_SIZE - sizeof(pri)
-					- sizeof(struct SlotDirectory) * slots.size(), slots.data(),
-			slots.size() * sizeof(struct SlotDirectory));
+void BTPage::copySlotsToPage(vector<SlotDirectory> &slots, char *pageBuffer) {
+	for (int i=0; i<slots.size(); i++){
+		updateSlotDirectory(RID{0,i}, pageBuffer, slots[i]);
+	}
+//	memcpy(
+//			pageBuffer + PAGE_SIZE - sizeof(pri)
+//					- sizeof(struct SlotDirectory) * slots.size(), slots.data(),
+//			slots.size() * sizeof(struct SlotDirectory));
 }
 /**
  * soft deletes the entry from the page and returns the
@@ -735,10 +737,11 @@ void BTPage::setSlotDirectory() {
 		cout << "BTPage::setSlotDirectory() : Number of slots in slots vector "
 				<< slots.size();
 	}
-	memcpy(
-			pageBuffer + PAGE_SIZE - sizeof(pri)
-					- sizeof(struct SlotDirectory) * slots.size(), slots.data(),
-			slots.size() * sizeof(struct SlotDirectory));
+	copySlotsToPage(slots, pageBuffer);
+//	memcpy(
+//			pageBuffer + PAGE_SIZE - sizeof(pri)
+//					- sizeof(struct SlotDirectory) * slots.size(), slots.data(),
+//			slots.size() * sizeof(struct SlotDirectory));
 
 }
 
@@ -746,6 +749,7 @@ void BTPage::setSiblingNode(PageNum rightSiblingPgNum) {
 	int offset = sizeof(pageType);
 	memcpy(pageBuffer + offset, &(rightSiblingPgNum),
 			sizeof(rightSiblingPgNum));
+	siblingPage = rightSiblingPgNum;
 }
 
 void BTPage::printPage() {
@@ -876,7 +880,7 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 		pageToLoad->appendEntry(slotEntry->getEntryBuffer(),
 				slots[islot].length);
 
-		delete[] slotEntry;
+		delete slotEntry;
 		free(entryBuf);
 	}
 
@@ -959,7 +963,7 @@ RC BTPage::insertEntryInOrder(Entry& entry) {
 		this->readEntry(islot, entryBuf);
 		islot++;
 		Entry pageLeafEntry(entryBuf, attribute.type);
-		if (icomp.compare(entry, pageLeafEntry) > 0) {
+		if (icomp.compare(pageLeafEntry, entry) > 0) {
 			slotFound = true;
 			break;
 		}
@@ -1058,9 +1062,9 @@ return stringEntries;
 string Entry::toString(){
 string sEntry;
 
-sEntry = "\"" + getKey()->toString() + ": [("  +
+sEntry = getKey()->toString() + ": [("  +
 		std::to_string(getRID().pageNum) + "," +
-		std::to_string(getRID().slotNum) + ")]\"";
+		std::to_string(getRID().slotNum) + ")]";
 
 return sEntry;
 }
