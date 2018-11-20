@@ -816,7 +816,10 @@ RC BTPage::insertEntry(const char * const entry, int slotNumber, int length) {
 
 void BTPage::copySlotsToPage(vector<SlotDirectory> &slots, char *pageBuffer) {
 	for (int i=0; i<slots.size(); i++){
-		updateSlotDirectory(RID{0,i}, pageBuffer, slots[i]);
+		RID updatedRID;
+		updatedRID.pageNum = 0;
+		updatedRID.slotNum = i;
+		updateSlotDirectory(updatedRID, pageBuffer, slots[i]);
 	}
 //	memcpy(
 //			pageBuffer + PAGE_SIZE - sizeof(pri)
