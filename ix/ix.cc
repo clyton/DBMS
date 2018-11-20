@@ -967,15 +967,12 @@ RC BTPage::insertEntryInOrder(Entry& entry) {
 	r_slot islot = 0;
 	r_slot numberOfSlots = this->getNumberOfSlots();
 	IntermediateComparator icomp; // for insert cmp both key,rid in leaf
-	char* entryBuf = (char*) malloc(PAGE_SIZE);
-	bool slotFound = false;
 	while (islot < numberOfSlots) {
 		Entry *pageLeafEntry = getEntry(islot);
-		islot++;
 		if (icomp.compare(*pageLeafEntry, entry) > 0) {
-			slotFound = true;
 			break;
 		}
+		islot++;
 	}
 	this->insertEntry(entry.getEntryBuffer(), islot, entry.getEntrySize());
 	return success;
