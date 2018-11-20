@@ -502,8 +502,12 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 
 		if(!entryFound)
 		{
-			r_slot siblingPageNum = btPg->getSiblingPageNum();
-			
+			PageNum siblingPageNum = btPg->getSiblingPageNum();
+			if(siblingPageNum == btPg->NULL_PAGE)
+			{
+				isEOF = IX_EOF;
+				break;
+			}
 			char* pageData = (char*) malloc(PAGE_SIZE);
 			ixfileHandle->fileHandle.readPage(siblingPageNum, pageData);
 			btPg = new BTPage(pageData, attribute);
@@ -707,16 +711,6 @@ int IntermediateEntry::getKeyOffset() {
 int IntermediateEntry::getRIDOffset() {
 	return sizeof(leftPtr) + getKey()->getKeySize();
 }
-
-// LeafEntry::LeafEntry(char* entry, AttrType aType): Entry(entry, aType){
-// }
-
-//  int LeafEntry::getKeyOffset(){
-// 	return 0;
-// }
-//  int LeafEntry::getRIDOffset(){
-// 	return key->getKeySize();
-// }
 
 EntryComparator::~EntryComparator() {
 

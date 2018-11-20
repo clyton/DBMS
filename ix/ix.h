@@ -207,12 +207,6 @@ private:
 
 };
 
-// class LeafEntry : public Entry{
-// public:
-// 	LeafEntry(char* entry, AttrType aType);
-// 	int getKeyOffset();
-// 	int getRIDOffset();
-// };
 
 class EntryComparator{
 public:
