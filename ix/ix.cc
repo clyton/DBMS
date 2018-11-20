@@ -472,6 +472,7 @@ IX_ScanIterator::IX_ScanIterator() {
 	highLeafEntry = 0;
     isEOF = 0;
 	btPg = 0;
+	islot = 0;
 }
 
 IX_ScanIterator::~IX_ScanIterator() {
@@ -483,7 +484,6 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 	char* entry = (char*) malloc(PAGE_SIZE);
 	while(!entryFound && isEOF!=IX_EOF)
 	{
-		r_slot islot = 0;
 		r_slot numberOfSlots = btPg->getNumberOfSlots();
 		LeafComparator lcomp;
 		while(islot < numberOfSlots)
@@ -491,8 +491,12 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 			btPg->readEntry(islot, entry);
 			islot++;
 			Entry *pageLeafEntry = new Entry(entry, attribute.type);
-			bool isLowerMatch = lowKeyInclusive ? lcomp.compare(*nextLeafEntry, *pageLeafEntry) >= 0 : lcomp.compare(*nextLeafEntry, *pageLeafEntry) > 0;
-			bool isHigherMatch = highKeyInclusive ? lcomp.compare(*highLeafEntry, *pageLeafEntry) <= 0 : lcomp.compare(*highLeafEntry, *pageLeafEntry) < 0;
+			bool isLowerMatch = false;
+			if(nextLeafEntry!=0)
+				isLowerMatch = lowKeyInclusive ? lcomp.compare(*nextLeafEntry, *pageLeafEntry) >= 0 : lcomp.compare(*nextLeafEntry, *pageLeafEntry) > 0;
+			bool isHigherMatch = false;
+			if(highLeafEntry!=0)
+				isHigherMatch = highKeyInclusive ? lcomp.compare(*highLeafEntry, *pageLeafEntry) <= 0 : lcomp.compare(*highLeafEntry, *pageLeafEntry) < 0;
 			if((nextLeafEntry == 0 || isLowerMatch) && (highLeafEntry == 0 || isHigherMatch))
 			{
 				entryFound = true;
@@ -503,7 +507,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 		if(!entryFound)
 		{
 			PageNum siblingPageNum = btPg->getSiblingPageNum();
-			if(siblingPageNum == btPg->NULL_PAGE)
+			if(siblingPageNum == USHRT_MAX)
 			{
 				isEOF = IX_EOF;
 				break;
@@ -526,12 +530,12 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 		return 0;
 	}
 
-	return -1;
+	return 0;
 
 }
 
 RC IX_ScanIterator::close() {
-	return -1;
+	return 0;
 }
 
 IXFileHandle::IXFileHandle() {

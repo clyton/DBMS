@@ -86,6 +86,7 @@ class IX_ScanIterator {
         Entry* highLeafEntry;
         int isEOF;
         BTPage* btPg;
+        r_slot islot;
 
 
 		// Constructor
