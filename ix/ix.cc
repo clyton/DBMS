@@ -643,7 +643,9 @@ void BTPage::readSlotDirectory() {
 }
 
 bool BTPage::isSpaceAvailableToInsertEntryOfSize(r_slot length) {
-	unsigned freeSpaceAvailable = PAGE_SIZE - pri.freeSpacePos;
+	unsigned freeSpaceAvailable = PAGE_SIZE - pri.freeSpacePos
+			- slots.size() * sizeof(struct SlotDirectory)
+			- sizeof(struct PageRecordInfo);
 	if (freeSpaceAvailable >= length + sizeof(struct SlotDirectory)) {
 		return true;
 	} else
@@ -995,6 +997,7 @@ void IndexManager::printBtree(IXFileHandle &ixfileHande, BTPage* root) const {
 	else {
 		printf(R"( { "keys" : [%s] } )", root->toString().c_str());
 		// if not last page in tree
+		cout << "" << endl;
 		if (root->getSiblingNode() != BTPage::NULL_PAGE) {
 			printf(",");
 		}
