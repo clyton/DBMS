@@ -166,6 +166,8 @@ PageNum IndexManager::getRootPageID(IXFileHandle &ixfileHandle) const{
 
 }
 
+
+
 RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 		const Attribute &attribute, const void *key, const RID &rid) {
 	if (ixfileHandle.fileHandle.getNumberOfPages() == 0) {
@@ -349,7 +351,79 @@ return -1;
 RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
 	const void *lowKey, const void *highKey, bool lowKeyInclusive,
 	bool highKeyInclusive, IX_ScanIterator &ix_ScanIterator) {
-return -1;
+        ix_ScanIterator.ixfileHandle = &ixfileHandle;
+        ix_ScanIterator.attribute = attribute;
+        ix_ScanIterator.lowKey = lowKey;
+        ix_ScanIterator.highKey = highKey;
+        ix_ScanIterator.lowKeyInclusive = lowKeyInclusive;
+        ix_ScanIterator.highKeyInclusive = highKeyInclusive;
+
+        BTPage *btPg = NULL;
+        LeafEntry *leafEntry = NULL;
+		PageNum rootPageId = getRootPageID(ixfileHandle);
+		char* pageData = (char*) malloc(PAGE_SIZE);
+		ixfileHandle.fileHandle.readPage(rootPageId, pageData);
+		btPg = new BTPage(pageData, attribute);
+		PageNum pgToTraverse = rootPageId;
+		char* entry = (char*) malloc(PAGE_SIZE);
+        if(lowKey)
+        {
+            char* lowKeyLeafEntryBuf = (char*) malloc(PAGE_SIZE);
+            RID lowKeyRID;
+            lowKeyRID.pageNum = USHRT_MAX;
+            lowKeyRID.slotNum = USHRT_MAX; 
+            r_slot entrySize = prepareLeafEntry(lowKeyLeafEntryBuf, lowKey, lowKeyRID, attribute);
+            leafEntry = new LeafEntry(lowKeyLeafEntryBuf, attribute.type);
+        }
+
+		while(btPg->getPageType() != BTPageType::LEAF){
+				r_slot islot;
+				IntermediateEntry *ptrIEntry = NULL;
+				for ( islot = 0; islot < btPg->getNumberOfSlots(); islot++){
+					memset(entry,0,PAGE_SIZE);
+					btPg->readEntry(islot, entry);
+					ptrIEntry = new IntermediateEntry (entry, attribute.type);
+					IntermediateComparator iComp;
+					if(leafEntry == 0 || iComp.compare(*ptrIEntry, *leafEntry) > 0){ // if entry in node greater than leaf entry
+						break;
+					}
+					delete[] ptrIEntry;
+				}
+				if (islot < btPg->getNumberOfSlots()){ // islot in range
+					pgToTraverse = ptrIEntry->getLeftPtr();
+				}
+				else{ 
+					pgToTraverse = ptrIEntry->getRightPtr();
+				}
+				if(btPg) delete[] btPg;
+				memset(pageData,0, PAGE_SIZE);
+				ixfileHandle.fileHandle.readPage(pgToTraverse, pageData);
+				btPg = new BTPage(pageData, attribute);
+				delete ptrIEntry;
+			}
+
+        r_slot islot = 0;
+        r_slot numberOfSlots = btPg->getNumberOfSlots();
+        IntermediateComparator icomp;
+        bool slotFound = false;
+        //char* entry = (char*) malloc(PAGE_SIZE);
+        while(islot < numberOfSlots){
+            btPg->readEntry(islot, entry);
+            islot++;
+            LeafEntry *pageLeafEntry = new LeafEntry(entry, attribute.type);
+            if(leafEntry == 0 || icomp.compare(*leafEntry, *pageLeafEntry) > 0){
+                slotFound = true;
+                break;
+            }
+        }
+        if(!lowKeyInclusive)
+            if(islot < numberOfSlots)
+                btPg->readEntry(islot++, entry);
+        ix_ScanIterator.nextLeafEntry = new LeafEntry(entry, attribute.type);
+
+		free(pageData);
+		free(entry);
+        return 0;
 }
 
 void IndexManager::printBtree(IXFileHandle &ixfileHandle,
@@ -386,13 +460,23 @@ void IndexManager::printBtree(IXFileHandle &ixfileHandle,
 }
 
 IX_ScanIterator::IX_ScanIterator() {
+    ixfileHandle = NULL;
+    lowKey = NULL;
+    highKey = NULL;
+    lowKeyInclusive = false;
+    highKeyInclusive = false;
+    attribute.name = "";
+    attribute.type = TypeInt;
+    attribute.length = 0;
+    nextLeafEntry = NULL;
+    isEOF = 0;
 }
 
 IX_ScanIterator::~IX_ScanIterator() {
 }
 
 RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
-return -1;
+    
 }
 
 RC IX_ScanIterator::close() {
@@ -570,6 +654,16 @@ return sizeof(leftPtr);
 
 int IntermediateEntry::getRIDOffset() {
 return sizeof(leftPtr) + key->getKeySize();
+}
+
+LeafEntry::LeafEntry(char* entry, AttrType aType): Entry(entry, aType){
+}
+
+ int LeafEntry::getKeyOffset(){
+	return 0;
+}
+ int LeafEntry::getRIDOffset(){
+	return key->getKeySize();
 }
 
 EntryComparator::~EntryComparator() {
@@ -960,3 +1054,46 @@ void IndexManager::printBtree(BTPage* root) const {
 
 //	printf(R"( { "keys" : ["%s"], )", root->ge)
 }
+
+// void IndexManager::traverseBtree(IXFileHandle &ixfileHandle, BTPage *btPg, const Attribute &attribute, LeafEntry *leafEntry) {
+    
+//     PageNum rootPageId = getRootPageID(ixfileHandle);
+// 	char* pageData = (char*) malloc(PAGE_SIZE);
+// 	ixfileHandle.fileHandle.readPage(rootPageId, pageData);
+// 	btPg = new BTPage(pageData, attribute);
+// 	PageNum pgToTraverse = rootPageId;
+// 	char* entry = (char*) malloc(PAGE_SIZE);
+//     while(btPg->getPageType() != BTPageType::LEAF){
+// 		r_slot islot;
+// 		IntermediateEntry *ptrIEntry = NULL;
+// 		for ( islot = 0; islot < btPg->getNumberOfSlots(); islot++){
+// 			memset(entry,0,PAGE_SIZE);
+// 			btPg->readEntry(islot, entry);
+// 			ptrIEntry = new IntermediateEntry (entry, attribute.type);
+// 			IntermediateComparator iComp;
+// 			if(leafEntry == 0 || iComp.compare(*ptrIEntry, *leafEntry) > 0){ // if entry in node greater than leaf entry
+// 				break;
+// 			}
+// 			delete[] ptrIEntry;
+// 		}
+// 		if (islot < btPg->getNumberOfSlots()){ // islot in range
+// 			pgToTraverse = ptrIEntry->getLeftPtr();
+// 		}
+// 		else{ //islot is out of range
+// 			// this means all entries in the file were smaller than
+// 			// ientry and that caused all slots to be read
+// 			// But it may also mean that there were no entries in the file
+// 			// In the first case, we have to traverse to the rightPtr of iEntry
+// 			// Case 2 can never happen. We will never get an empty intermediate node
+// 			// at this point in the code
+// 			pgToTraverse = ptrIEntry->getRightPtr();
+//  		}
+// 		if(btPg) delete[] btPg;
+// 		memset(pageData,0, PAGE_SIZE);
+// 		ixfileHandle.fileHandle.readPage(pgToTraverse, pageData);
+// 		btPg = new BTPage(pageData, attribute);
+// 		delete ptrIEntry;
+// 	}
+//     free(pageData);
+//     free(entry);
+// }

@@ -54,6 +54,7 @@ class IndexManager {
 
         // Print the B+ tree in pre-order (in a JSON record format)
         void printBtree(IXFileHandle &ixfileHandle, const Attribute &attribute) const;
+        
 
     protected:
         IndexManager();
@@ -70,11 +71,21 @@ class IndexManager {
       PageNum getRootPageID(IXFileHandle &ixfileHandle) const;
 	char* prepareEmptyBTPageBuffer(int offset);
 	void printBtree(BTPage* root) const;
+
 };
 
 
 class IX_ScanIterator {
     public:
+        IXFileHandle *ixfileHandle;
+        Attribute attribute;
+        const void* lowKey;
+        const void* highKey;
+        bool lowKeyInclusive;
+        bool highKeyInclusive;
+        Entry* nextLeafEntry;
+        int isEOF;
+
 
 		// Constructor
         IX_ScanIterator();
@@ -188,12 +199,9 @@ private:
 
 class LeafEntry : public Entry{
 public:
-	RID getSiblingPtr();
 	LeafEntry(char* entry, AttrType aType);
 	int getKeyOffset();
 	int getRIDOffset();
-private:
-	RID siblingPtr;
 };
 
 class EntryComparator{
