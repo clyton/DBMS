@@ -355,6 +355,10 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
 	const void *lowKey, const void *highKey, bool lowKeyInclusive,
 	bool highKeyInclusive, IX_ScanIterator &ix_ScanIterator) {
+
+		if(ixfileHandle.fileHandle.getFile() == NULL)
+			return -1;
+
         ix_ScanIterator.ixfileHandle = &ixfileHandle;
         ix_ScanIterator.attribute = attribute;
         ix_ScanIterator.lowKey = lowKey;
@@ -530,7 +534,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 		return 0;
 	}
 
-	return 0;
+	return -1;
 
 }
 
