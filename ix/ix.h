@@ -301,7 +301,7 @@ class BTPage {
   void setSlotDirectory(); //copy the slots vector to page buffer
   void printPage();
 
-  RC shiftRecord(char *pageData, r_slot slotToShiftOffset, int byBytesToShift);
+  RC deleteSlotAndRecord(int slotNumberToDelete, int byBytesToShift);
 
  private:
   BTPageType pageType;
