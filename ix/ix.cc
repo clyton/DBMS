@@ -408,7 +408,6 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
 			memset(pageData,0, PAGE_SIZE);
 			ixfileHandle.fileHandle.readPage(pgToTraverse, pageData);
 			btPg = new BTPage(pageData, attribute);
-			delete ptrIEntry;
 		}
 
 		ix_ScanIterator.btPg = btPg;
