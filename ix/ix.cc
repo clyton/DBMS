@@ -897,17 +897,14 @@ void BTPage::copySlotsToPage(vector<SlotDirectory> &slots, char *pageBuffer) {
 RC BTPage::removeEntry(int slotNumber, char * const entryBuf) {
 
 	readEntry(slotNumber, entryBuf);
-	SlotDirectory slotToDelete = slots[slotNumber];
-	r_slot nextSlotOffset = slotToDelete.offset + slotToDelete.length;
 
-	shiftRecord(pageBuffer, nextSlotOffset, -slotToDelete.length);
+	r_slot slotToDeleteLength = slots[slotNumber].length;
+
+	deleteSlotAndRecord(slotNumber, -slots[slotNumber].length);
 
 	pri.numberOfSlots--;
-	pri.freeSpacePos -= slotToDelete.length;
-	setPageRecordInfo();
-
-	slots.erase(slots.begin() + slotNumber);
-	setSlotDirectory();
+	pri.freeSpacePos -= slotToDeleteLength;
+	setPageRecordInfo(); //write to buffer
 
 	return success;
 
@@ -972,11 +969,14 @@ void BTPage::printPage() {
 	}
 }
 
-RC BTPage::shiftRecord(char *pageData, r_slot slotToShiftOffset,
-		int byBytesToShift) {
+RC BTPage::deleteSlotAndRecord(int slotNumberToDelete, int byBytesToShift) {
+
+	SlotDirectory slotToDelete = slots[slotNumberToDelete];
+	r_slot nextSlotOffset = slotToDelete.offset + slotToDelete.length;
+	r_slot slotToShiftOffset = nextSlotOffset;
 
 	PageRecordInfo pri;
-	getPageRecordInfo(pri, pageData);
+	getPageRecordInfo(pri, pageBuffer);
 
 	if (slotToShiftOffset + byBytesToShift
 			< 0||
@@ -984,26 +984,14 @@ RC BTPage::shiftRecord(char *pageData, r_slot slotToShiftOffset,
 		return failure;
 	}
 
-	memmove(pageData + slotToShiftOffset + byBytesToShift,
-			pageData + slotToShiftOffset, pri.freeSpacePos - slotToShiftOffset);
+	memmove(pageBuffer + slotToShiftOffset + byBytesToShift,
+			pageBuffer + slotToShiftOffset, pri.freeSpacePos - slotToShiftOffset);
 
-	for (r_slot islot = 0; islot < pri.numberOfSlots; islot++) {
-		RID ridOfRecordToShift;
-//       ridOfRecordToShift.pageNum = rid.pageNum; page number not needed
-		ridOfRecordToShift.slotNum = islot;
-
-		SlotDirectory islotDir;
-		getSlotForRID(pageData, ridOfRecordToShift, islotDir);
-
-		if (islotDir.offset == USHRT_MAX) {
-			continue;
-		}
-
-		if (islotDir.offset >= slotToShiftOffset) {
-			islotDir.offset += byBytesToShift;
-			updateSlotDirectory(ridOfRecordToShift, pageData, islotDir);
-		}
+	slots.erase(slots.begin() + slotNumberToDelete);
+	for (r_slot islot = 0; islot < slots.size(); islot++) {
+		slots[islot].offset += byBytesToShift;
 	}
+	copySlotsToPage(slots, pageBuffer);
 
 	return success;
 }
@@ -1070,10 +1058,10 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 
 		}
 		// read next slot into entryBuf and then create its Entry object slotEntry
-		char* entryBuf = (char*) malloc(PAGE_SIZE);
-		memset(entryBuf, 0, PAGE_SIZE);
-		readEntry(islot, entryBuf);
-		slotEntry = Entry::getEntry(entryBuf, attribute.type, pageType);
+//		char* entryBuf = (char*) malloc(PAGE_SIZE);
+//		memset(entryBuf, 0, PAGE_SIZE);
+//		readEntry(islot, entryBuf);
+		slotEntry = getEntry(islot);
 
 		// Compare slot entry with the whose insertion caused a split
 		int difference = comparator.compare(*slotEntry, insertEntry);
@@ -1090,7 +1078,6 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 				slots[islot].length);
 
 		delete slotEntry;
-		free(entryBuf);
 	}
 	if(!entryInserted){
 			pageToLoad->appendEntry(insertEntry.getEntryBuffer(),
@@ -1200,20 +1187,19 @@ void IndexManager::printBtree(IXFileHandle &ixfileHande, BTPage* root) const {
 			entry = dynamic_cast<IntermediateEntry*>(root->getEntry(i));
 			ixfileHande.fileHandle.readPage(entry->getLeftPtr(), pageBuffer);
 			printBtree(ixfileHande, new BTPage(pageBuffer, root->getAttribute()));
+			printf(",");
 		}
 		if (root->getNumberOfSlots() != 0){
 		ixfileHande.fileHandle.readPage(entry->getRightPtr(), pageBuffer);
 		printBtree(ixfileHande, new BTPage(pageBuffer, root->getAttribute()));
 		}
 		printf("]}");
+		cout << "" << endl;
 	}
 	else {
 		printf(R"( { "keys" : [%s] } )", root->toString().c_str());
 		// if not last page in tree
 		cout << "" << endl;
-		if (root->getSiblingNode() != BTPage::NULL_PAGE) {
-			printf(",");
-		}
 	}
 
 	/*
