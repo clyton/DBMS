@@ -280,6 +280,7 @@ class BTPage {
   Attribute getAttribute();
   const static PageNum NULL_PAGE = USHRT_MAX;
   string toString();
+  r_slot isEntryPresent(Entry e);
 
 
  private:
