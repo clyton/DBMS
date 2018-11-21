@@ -498,10 +498,10 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 			Entry *pageLeafEntry = new Entry(entry, attribute.type);
 			bool isLowerMatch = false;
 			if(nextLeafEntry!=0)
-				isLowerMatch = lowKeyInclusive ? lcomp.compare(*nextLeafEntry, *pageLeafEntry) >= 0 : lcomp.compare(*nextLeafEntry, *pageLeafEntry) > 0;
+				isLowerMatch = lowKeyInclusive ? lcomp.compare(*nextLeafEntry, *pageLeafEntry) <= 0 : lcomp.compare(*nextLeafEntry, *pageLeafEntry) < 0;
 			bool isHigherMatch = false;
 			if(highLeafEntry!=0)
-				isHigherMatch = highKeyInclusive ? lcomp.compare(*highLeafEntry, *pageLeafEntry) <= 0 : lcomp.compare(*highLeafEntry, *pageLeafEntry) < 0;
+				isHigherMatch = highKeyInclusive ? lcomp.compare(*highLeafEntry, *pageLeafEntry) >= 0 : lcomp.compare(*highLeafEntry, *pageLeafEntry) > 0;
 			if((nextLeafEntry == 0 || isLowerMatch) && (highLeafEntry == 0 || isHigherMatch))
 			{
 				entryFound = true;
@@ -520,6 +520,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 			char* pageData = (char*) malloc(PAGE_SIZE);
 			ixfileHandle->fileHandle.readPage(siblingPageNum, pageData);
 			btPg = new BTPage(pageData, attribute);
+			islot = 0;
 		}	
 	}
 	
