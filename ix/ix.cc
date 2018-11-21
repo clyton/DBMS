@@ -1070,10 +1070,10 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 
 		}
 		// read next slot into entryBuf and then create its Entry object slotEntry
-		char* entryBuf = (char*) malloc(PAGE_SIZE);
-		memset(entryBuf, 0, PAGE_SIZE);
-		readEntry(islot, entryBuf);
-		slotEntry = Entry::getEntry(entryBuf, attribute.type, pageType);
+//		char* entryBuf = (char*) malloc(PAGE_SIZE);
+//		memset(entryBuf, 0, PAGE_SIZE);
+//		readEntry(islot, entryBuf);
+		slotEntry = getEntry(islot);
 
 		// Compare slot entry with the whose insertion caused a split
 		int difference = comparator.compare(*slotEntry, insertEntry);
