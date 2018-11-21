@@ -458,7 +458,6 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
 				if(leafEntry == 0 || iComp.compare(*ptrIEntry, *leafEntry) > 0){ // if entry in node greater than leaf entry
 					break;
 				}
-				delete ptrIEntry;
 			}
 			if (islot < btPg->getNumberOfSlots()){ // islot in range
 				pgToTraverse = ptrIEntry->getLeftPtr();
