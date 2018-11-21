@@ -350,7 +350,69 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 
 RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 		const Attribute &attribute, const void *key, const RID &rid) {
-	return -1;
+	if (ixfileHandle.fileHandle.getNumberOfPages() == 0) {
+		setUpIndexFile(ixfileHandle, attribute);
+	}
+
+	char* leafEntryBuf = (char*) malloc(PAGE_SIZE);
+	memset(leafEntryBuf, 0, PAGE_SIZE);
+	r_slot entrySize = prepareLeafEntry(leafEntryBuf, key, rid, attribute);
+	Entry leafEntry(leafEntryBuf, attribute.type);
+
+	PageNum rootPageId = getRootPageID(ixfileHandle);
+	char* pageData = (char*) malloc(PAGE_SIZE);
+	memset(pageData, 0, PAGE_SIZE);
+	ixfileHandle.fileHandle.readPage(rootPageId, pageData);
+
+	BTPage *btPg = new BTPage(pageData, attribute);
+	stack<PageNum> traversal;
+	PageNum currentPageNum = rootPageId;
+	char* entry = (char*) malloc(PAGE_SIZE);
+	while (btPg->getPageType() != BTPageType::LEAF) {
+		traversal.push(currentPageNum);
+		r_slot islot;
+		IntermediateEntry *ptrIEntry = NULL;
+		for (islot = 0; islot < btPg->getNumberOfSlots(); islot++) {
+			memset(entry, 0, PAGE_SIZE);
+			btPg->readEntry(islot, entry);
+			ptrIEntry = new IntermediateEntry(entry, attribute.type);
+			IntermediateComparator iComp;
+			if (iComp.compare(*ptrIEntry, leafEntry) > 0) { // if entry in node greater than leaf entry
+				break;
+
+			}
+		}
+		if (islot < btPg->getNumberOfSlots()) { // islot in range
+			currentPageNum = ptrIEntry->getLeftPtr();
+		} else { //islot is out of range
+				 // this means all entries in the file were smaller than
+				 // ientry and that caused all slots to be read
+				 // But it may also mean that there were no entries in the file
+				 // In the first case, we have to traverse to the rightPtr of iEntry
+				 // Case 2 can never happen. We will never get an empty intermediate node
+				 // at this point in the code
+			currentPageNum = ptrIEntry->getRightPtr();
+
+		}
+		if (btPg)
+			delete btPg;
+		memset(pageData, 0, PAGE_SIZE);
+		ixfileHandle.fileHandle.readPage(currentPageNum, pageData);
+		btPg = new BTPage(pageData, attribute);
+		delete ptrIEntry;
+	}
+
+	r_slot slotToDelete = btPg->isEntryPresent(leafEntry);
+	if (slotToDelete == USHRT_MAX){
+		return failure;
+	}
+	else{
+		char * entryBuf = (char*) malloc(PAGE_SIZE);
+		btPg->removeEntry(slotToDelete, entryBuf);
+		ixfileHandle.fileHandle.writePage(currentPageNum, btPg->getPage());
+		return success;
+	}
+
 }
 
 RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
@@ -389,9 +451,9 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
 			r_slot islot;
 			IntermediateEntry *ptrIEntry = NULL;
 			for ( islot = 0; islot < btPg->getNumberOfSlots(); islot++){
-				memset(entry,0,PAGE_SIZE);
-				btPg->readEntry(islot, entry);
-				ptrIEntry = new IntermediateEntry (entry, attribute.type);
+//				memset(entry,0,PAGE_SIZE);
+//				btPg->readEntry(islot, entry);
+				ptrIEntry = dynamic_cast<IntermediateEntry*>(btPg->getEntry(islot));
 				IntermediateComparator iComp;
 				if(leafEntry == 0 || iComp.compare(*ptrIEntry, *leafEntry) > 0){ // if entry in node greater than leaf entry
 					break;
@@ -1282,3 +1344,30 @@ string StringKey::toString(){
 //     free(pageData);
 //     free(entry);
 // }
+
+/**
+ * Returns the slot number where the entry is located
+ * If no matching entry is found then return USHRT_MAX
+ * @param entry : entry to search
+ * @return rslot : slot where the entry resides
+ */
+r_slot BTPage::isEntryPresent(Entry entry){
+
+	r_slot islot = 0;
+	r_slot numberOfSlots = this->getNumberOfSlots();
+	IntermediateComparator icomp; // for insert cmp both key,rid in leaf
+	bool entryFound = false;
+	while (islot < numberOfSlots) {
+		Entry *pageLeafEntry = getEntry(islot);
+		if (icomp.compare(*pageLeafEntry, entry) == 0) {
+			entryFound = true;
+			break;
+		}
+		islot++;
+	}
+	if (entryFound)
+		return islot;
+	else
+		return USHRT_MAX;
+
+}
