@@ -278,7 +278,7 @@ class BTPage {
   int getNumberOfSlots();
   SplitInfo* splitNodes(Entry &insertEntry, EntryComparator &comparator);
   Attribute getAttribute();
-  const static PageNum NULL_PAGE = UINT_MAX;
+  const static PageNum NULL_PAGE = USHRT_MAX;
   string toString();
 
 

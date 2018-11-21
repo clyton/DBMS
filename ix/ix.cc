@@ -511,7 +511,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 		if(!entryFound)
 		{
 			PageNum siblingPageNum = btPg->getSiblingPageNum();
-			if(siblingPageNum == USHRT_MAX)//TODO: Check why UINT_MAX is 4294967295 and siblingPageNum value is 65535
+			if(siblingPageNum == BTPage::NULL_PAGE)
 			{
 				isEOF = IX_EOF;
 				break;
@@ -526,8 +526,8 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 	if(entryFound)
 	{
 		Entry hitEntry(entry, attribute.type);
-		rid = hitEntry.getRID();
 		Key* hitKey = hitEntry.getKey();
+		rid = hitEntry.getRID();
 		r_slot keySize = hitKey->getKeySize();
 		r_slot keyOffset = hitEntry.getKeyOffset();
 		memcpy(key, entry + keyOffset, keySize);
