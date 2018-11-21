@@ -1090,7 +1090,6 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 				slots[islot].length);
 
 		delete slotEntry;
-		free(entryBuf);
 	}
 	if(!entryInserted){
 			pageToLoad->appendEntry(insertEntry.getEntryBuffer(),
