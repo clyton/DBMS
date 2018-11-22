@@ -447,8 +447,8 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
         {
             char* lowKeyLeafEntryBuf = (char*) malloc(PAGE_SIZE);
             RID lowKeyRID;
-            lowKeyRID.pageNum = USHRT_MAX;//TODO: Confirm if this is correct
-            lowKeyRID.slotNum = USHRT_MAX; 
+            lowKeyRID.pageNum = 0;
+            lowKeyRID.slotNum = 0; 
             r_slot entrySize = prepareLeafEntry(lowKeyLeafEntryBuf, lowKey, lowKeyRID, attribute);
             leafEntry = new Entry(lowKeyLeafEntryBuf, attribute.type);
         }
@@ -599,7 +599,15 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 		rid = hitEntry.getRID();
 		r_slot keySize = hitKey->getKeySize();
 		r_slot keyOffset = hitEntry.getKeyOffset();
-		memcpy(key, entry + keyOffset, keySize);
+		if(attribute.type == TypeVarChar)
+		{
+			memcpy(key, entry + keyOffset + sizeof(int), keySize - sizeof(int));
+		}
+		else
+		{
+			memcpy(key, entry + keyOffset, keySize);
+		}
+		
 		nextLeafEntry = new Entry(entry, attribute.type);
 		return 0;
 	}
