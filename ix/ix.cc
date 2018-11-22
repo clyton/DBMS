@@ -1040,15 +1040,17 @@ shared_ptr<SplitInfo> BTPage::splitNodes(Entry &insertEntry, EntryComparator& co
 //		readEntry(islot, entryBuf);
 		slotEntry = getEntry(islot);
 
-		// Compare slot entry with the whose insertion caused a split
-		int difference = comparator.compare(*slotEntry, insertEntry);
+		if (!entryInserted) {
+			// Compare slot entry with the whose insertion caused a split
+			int difference = comparator.compare(*slotEntry, insertEntry);
 
-		if (difference > 0) // if entry in page is greater than entry to insert
-				{
-			// insert the smaller entry first
-			pageToLoad->appendEntry(insertEntry.getEntryBuffer(),
-					insertEntry.getEntrySize());
-			entryInserted = true;
+			if (difference > 0) // if entry in page is greater than entry to insert
+					{
+				// insert the smaller entry first
+				pageToLoad->appendEntry(insertEntry.getEntryBuffer(),
+						insertEntry.getEntrySize());
+				entryInserted = true;
+			}
 		}
 
 		pageToLoad->appendEntry(slotEntry->getEntryBuffer(),
