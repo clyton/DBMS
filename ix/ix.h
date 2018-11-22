@@ -196,6 +196,7 @@ public:
 	PageNum getLeftPtr();
 	PageNum getRightPtr();
 	IntermediateEntry(char* entry, AttrType aType);
+	~IntermediateEntry();
 	int getKeyOffset();
 	int getRIDOffset();
 	r_slot getEntrySize();
@@ -250,7 +251,7 @@ public:
  */
 class BTPage {
  public:
-  BTPage(const char *page, const Attribute &attribute);
+  BTPage(char *page, const Attribute &attribute);
   ~BTPage();
   BTPageType getPageType();
   r_slot getFreeSpaceAvailable();
@@ -275,9 +276,9 @@ class BTPage {
   RC removeEntry(int slotNumber, char * const entryBuf);
   RC readEntry(r_slot slotNum, char * const buf);
   char *getPage();
-  r_slot getSiblingPageNum();
+  PageNum getSiblingPageNum();
   int getNumberOfSlots();
-  SplitInfo* splitNodes(Entry &insertEntry, EntryComparator &comparator);
+  shared_ptr<SplitInfo> splitNodes(Entry &insertEntry, EntryComparator &comparator);
   Attribute getAttribute();
   const static PageNum NULL_PAGE = UINT_MAX;
   string toString();
@@ -316,10 +317,20 @@ class BTPage {
 };
 
 struct SplitInfo{
-	BTPage* leftChild;
-	BTPage* rightChild;
-	IntermediateEntry* iEntryParent;
+	shared_ptr<BTPage> leftChild;
+	shared_ptr<BTPage> rightChild;
+	shared_ptr<IntermediateEntry> iEntryParent;
 
+//	~SplitInfo(){
+//		char* lpgBuffer = leftChild->getPage();
+//		char* rpgBuffer = rightChild->getPage();
+//		char* parentBuffer = iEntryParent->getEntryBuffer();
+
+//		delete [] lpgBuffer;
+//		delete [] rpgBuffer;
+//		delete [] parentBuffer;
+
+//	}
 };
 
 #endif
