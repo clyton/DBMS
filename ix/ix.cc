@@ -1009,7 +1009,8 @@ RC BTPage::deleteSlotAndRecord(int slotNumberToDelete, int byBytesToShift) {
 
 	slots.erase(slots.begin() + slotNumberToDelete);
 	for (r_slot islot = 0; islot < slots.size(); islot++) {
-		slots[islot].offset += byBytesToShift;
+		if (slots[islot].offset >= slotToShiftOffset)
+			slots[islot].offset += byBytesToShift;
 	}
 	copySlotsToPage(slots, pageBuffer);
 
