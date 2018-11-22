@@ -203,7 +203,6 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 				break;
 
 			}
-//			delete ptrIEntry;
 		}
 		if (islot < btPg->getNumberOfSlots()) { // islot in range
 			currentPageNum = ptrIEntry->getLeftPtr();
@@ -229,20 +228,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 	// condition to check if there is no ancestor : traversal.size() == 0
 
 	if (btPg->isSpaceAvailableToInsertEntryOfSize(entrySize)) {
-//		r_slot islot = 0;
-//		r_slot numberOfSlots = btPg->getNumberOfSlots();
-//		IntermediateComparator icomp; // for insert cmp both key,rid in leaf
-//		bool slotFound = false;
-//		while(islot < numberOfSlots){
-//			btPg->readEntry(islot, entry);
-//			islot++;
-//			Entry pageLeafEntry(entry, attribute.type);
-//			if(icomp.compare(leafEntry, pageLeafEntry) > 0){
-//				slotFound = true;
-//				break;
-//			}
-//		}
-//		btPg->insertEntry(leafEntryBuf, islot, entrySize);
+
 		btPg->insertEntryInOrder(leafEntry);
 		ixfileHandle.fileHandle.writePage(currentPageNum, btPg->getPage());
 	} else {
@@ -294,6 +280,9 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 
 			splitEntry = split->iEntryParent;
 			delete split;
+			free(pageData);
+			if(btPg)
+				delete btPg;
 
 			// recursively push up the iEntryParent if needed
 //		pushUp(ixfileHandle, attribute, split->iEntryParent, traversal);
@@ -308,6 +297,9 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 			ixfileHandle.fileHandle.appendPage(btPg->getPage());
 			PageNum pNum = ixfileHandle.fileHandle.getNumberOfPages() - 1;
 			setRootPage(ixfileHandle, pNum);
+			if(btPg)
+				delete btPg;
+			free(intermediateRootPageBuffer);
 		}
 
 	}
@@ -364,7 +356,7 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 	memset(leafEntryBuf, 0, PAGE_SIZE);
 	r_slot entrySize = prepareLeafEntry(leafEntryBuf, key, rid, attribute);
 	Entry leafEntry(leafEntryBuf, attribute.type);
-
+	
 	PageNum rootPageId = getRootPageID(ixfileHandle);
 	char* pageData = (char*) malloc(PAGE_SIZE);
 	memset(pageData, 0, PAGE_SIZE);
@@ -402,20 +394,33 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 		}
 		if (btPg)
 			delete btPg;
+		btPg = NULL;
 		memset(pageData, 0, PAGE_SIZE);
 		ixfileHandle.fileHandle.readPage(currentPageNum, pageData);
 		btPg = new BTPage(pageData, attribute);
 		delete ptrIEntry;
 	}
 
+
 	r_slot slotToDelete = btPg->isEntryPresent(leafEntry);
 	if (slotToDelete == USHRT_MAX){
+		if(btPg)
+			delete btPg;
+		free(leafEntryBuf);
+		free(pageData);
+		free(entry);
 		return failure;
 	}
 	else{
 		char * entryBuf = (char*) malloc(PAGE_SIZE);
 		btPg->removeEntry(slotToDelete, entryBuf);
 		ixfileHandle.fileHandle.writePage(currentPageNum, btPg->getPage());
+		free(entryBuf);
+		if(btPg)
+			delete btPg;
+		free(leafEntryBuf);
+		free(pageData);
+		free(entry);
 		return success;
 	}
 
@@ -459,6 +464,8 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
 			for ( islot = 0; islot < btPg->getNumberOfSlots(); islot++){
 //				memset(entry,0,PAGE_SIZE);
 //				btPg->readEntry(islot, entry);
+				delete ptrIEntry;
+				ptrIEntry = NULL;
 				ptrIEntry = dynamic_cast<IntermediateEntry*>(btPg->getEntry(islot));
 				IntermediateComparator iComp;
 				if(leafEntry == 0 || iComp.compare(*ptrIEntry, *leafEntry) > 0){ // if entry in node greater than leaf entry
@@ -571,8 +578,12 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 			if((nextLeafEntry == 0 || isLowerMatch) && (highLeafEntry == 0 || isHigherMatch))
 			{
 				entryFound = true;
+				delete pageLeafEntry;
+				pageLeafEntry = NULL;
 				break;
 			}
+			delete pageLeafEntry;
+			pageLeafEntry = NULL;
 		}
 
 		if(!entryFound)
@@ -599,9 +610,12 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 		r_slot keyOffset = hitEntry.getKeyOffset();
 		memcpy(key, entry + keyOffset, keySize);
 		nextLeafEntry = new Entry(entry, attribute.type);
+
+		free(entry);
 		return 0;
 	}
 
+	free(entry);
 	return -1;
 
 }
@@ -825,10 +839,11 @@ int LeafComparator::compare(Entry a, Entry b) {
 
 	return aKey->compare(*bKey);
 }
-BTPage::BTPage(const char *pageData, const Attribute &attribute) {
+BTPage::BTPage(char *pageData, const Attribute &attribute) {
 //	pageBuffer = pageData;
-	pageBuffer = (char *) malloc(PAGE_SIZE);
-	memcpy(pageBuffer, pageData, PAGE_SIZE);
+	// pageBuffer = (char *) malloc(PAGE_SIZE);
+	//memcpy(pageBuffer, pageData, PAGE_SIZE);
+	pageBuffer = pageData;
 	readAttribute(attribute);
 	readPageType();
 	readSiblingNode();
@@ -1021,9 +1036,9 @@ BTPageType BTPage::getPageType() {
 }
 
 BTPage::~BTPage() {
-	if (pageBuffer) {
-		free(pageBuffer);
-	}
+	// if (pageBuffer) {
+	// 	free(pageBuffer);
+	// }
 }
 
 int BTPage::getNumberOfSlots() {
@@ -1099,6 +1114,7 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 				slots[islot].length);
 
 		delete slotEntry;
+		slotEntry = NULL;
 	}
 	if(!entryInserted){
 			pageToLoad->appendEntry(insertEntry.getEntryBuffer(),
@@ -1116,6 +1132,8 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 		prepareIntermediateEntry(intermediateEntryBuffer,
 				leafEntry->getEntryBuffer(), leafEntry->getEntrySize(),
 				NULL_PAGE, NULL_PAGE);
+		delete leafEntry;
+		leafEntry = NULL;
 	}
 	// if page getting split is an intermediate page
 	else {
@@ -1182,9 +1200,13 @@ RC BTPage::insertEntryInOrder(Entry& entry) {
 	while (islot < numberOfSlots) {
 		Entry *pageLeafEntry = getEntry(islot);
 		if (icomp.compare(*pageLeafEntry, entry) > 0) {
+			delete pageLeafEntry;
+			pageLeafEntry = NULL;
 			break;
 		}
 		islot++;
+		delete pageLeafEntry;
+		pageLeafEntry = NULL;
 	}
 	this->insertEntry(entry.getEntryBuffer(), islot, entry.getEntrySize());
 	return success;
@@ -1251,7 +1273,7 @@ Entry* BTPage::getEntry(r_slot slotNum) {
 		cerr << "Invalid slot num " << slotNum;
 		exit(1);
 	}
-	char* slotEntryBuf = (char*) malloc(PAGE_SIZE);
+	char* slotEntryBuf = (char*) malloc(slots[slotNum].length + 1);
 	readEntry(slotNum, slotEntryBuf);
 	Entry* slotEntry = Entry::getEntry(slotEntryBuf, attribute.type, pageType);
 
@@ -1271,11 +1293,14 @@ string BTPage::toString(){
 
 string stringEntries = "";
 for(int i=0; i<slots.size(); i++){
-	string sEntry = "\"" +  getEntry(i)->toString() + "\"";
+	Entry* sKey = getEntry(i);
+	string sEntry = "\"" +  sKey->toString() + "\"";
 	stringEntries = stringEntries +   sEntry ;
 	if (i!=slots.size() - 1){
 		stringEntries = stringEntries + ",";
 	}
+	delete sKey;
+	sKey = NULL;
 }
 
 return stringEntries;
@@ -1367,9 +1392,13 @@ r_slot BTPage::isEntryPresent(Entry entry){
 		Entry *pageLeafEntry = getEntry(islot);
 		if (icomp.compare(*pageLeafEntry, entry) == 0) {
 			entryFound = true;
+			delete pageLeafEntry;
+			pageLeafEntry = NULL;
 			break;
 		}
 		islot++;
+		delete pageLeafEntry;
+		pageLeafEntry = NULL;
 	}
 	if (entryFound)
 		return islot;

@@ -249,7 +249,7 @@ public:
  */
 class BTPage {
  public:
-  BTPage(const char *page, const Attribute &attribute);
+  BTPage(char *page, const Attribute &attribute);
   ~BTPage();
   BTPageType getPageType();
   r_slot getFreeSpaceAvailable();
