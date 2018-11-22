@@ -283,7 +283,7 @@ class BTPage {
   int getNumberOfSlots();
   shared_ptr<SplitInfo> splitNodes(Entry &insertEntry, EntryComparator &comparator);
   Attribute getAttribute();
-  const static PageNum NULL_PAGE = UINT_MAX;
+  const static PageNum NULL_PAGE = USHRT_MAX;
   string toString();
   r_slot isEntryPresent(Entry e);
 
