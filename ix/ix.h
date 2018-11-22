@@ -1,10 +1,13 @@
 #ifndef _ix_h_
 #define _ix_h_
 
-#include <vector>
-#include <string>
+#include <climits>
 #include <memory>
+#include <stack>
+#include <string>
+#include <vector>
 
+#include "../rbf/pfm.h"
 #include "../rbf/rbfm.h"
 
 # define IX_EOF (-1)  // end of the index scan
@@ -62,6 +65,7 @@ class IndexManager {
         ~IndexManager();
 
     private:
+        RC traverse(IXFileHandle &ixfileHandle, const Attribute &attribute, const void *key, const RID &rid, stack<PageNum> &traversal);
         static IndexManager *_index_manager;
         PagedFileManager *pfm;
         const int success = 0;
@@ -171,8 +175,8 @@ public:
 
 class Entry{
 public:
-	Entry(char* entry, AttrType aType);
-	static shared_ptr<Entry> getEntry(char* entry, AttrType aType, BTPageType pageType);
+	Entry(shared_ptr<char> entry, AttrType aType);
+	static shared_ptr<Entry> getEntry(shared_ptr<char> entry, AttrType aType, BTPageType pageType);
 	virtual shared_ptr<Key> getKey();
 	virtual RID getRID();
 	virtual r_slot getEntrySize();
@@ -185,7 +189,7 @@ private:
 	shared_ptr<Key> key;
 	bool isKeyDataSet = false;
 protected:
-	char* entry;
+	shared_ptr<char> entry;
 	AttrType aType;
 //	Key *key;
 //	RID rid;
@@ -195,7 +199,7 @@ class IntermediateEntry : public Entry{
 public:
 	PageNum getLeftPtr();
 	PageNum getRightPtr();
-	IntermediateEntry(char* entry, AttrType aType);
+	IntermediateEntry(shared_ptr<char> entry, AttrType aType);
 	~IntermediateEntry();
 	int getKeyOffset();
 	int getRIDOffset();
@@ -251,7 +255,7 @@ public:
  */
 class BTPage {
  public:
-  BTPage(char *page, const Attribute &attribute);
+  BTPage(shared_ptr<char> page, const Attribute &attribute);
   ~BTPage();
   BTPageType getPageType();
   r_slot getFreeSpaceAvailable();
@@ -271,7 +275,6 @@ class BTPage {
    */
   RC insertEntryInOrder(Entry& entry);
   RC insertEntry(const char *const entry, int slotNumber, int length);
-  RC getEntry(r_slot slotNum, char * const buf);  // same as readEntry()
   shared_ptr<Entry> getEntry(r_slot slotNum);
   RC removeEntry(int slotNumber, char * const entryBuf);
   RC readEntry(r_slot slotNum, char * const buf);
@@ -310,7 +313,7 @@ class BTPage {
   PageRecordInfo pri;
   vector<SlotDirectory> slots;
   PageNum siblingPage;  // for leaf pages
-  char *pageBuffer;
+  shared_ptr<char> pageBuffer;
   Attribute attribute;
   const int success = 0;
   const int failure = 1;
