@@ -211,19 +211,19 @@ private:
 
 class EntryComparator{
 public:
-	virtual int compare(Entry& a , Entry& b) = 0;
+	virtual int compare(Entry a , Entry b) = 0;
 	virtual ~EntryComparator();
 
 };
 
 class IntermediateComparator : public EntryComparator{
 public:
-	int compare(Entry& a , Entry& b) ;
+	int compare(Entry a, Entry b);
 };
 
 class LeafComparator : public EntryComparator{
 public:
-	int compare(Entry& a , Entry& b) ;
+	int compare(Entry a, Entry b);
 };
 
 

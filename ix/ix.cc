@@ -506,9 +506,7 @@ void IndexManager::printBtree(IXFileHandle &ixfileHandle,
 	ixfileHandle.fileHandle.readPage(rootPageID, pageData);
 	BTPage btPage(pageData, attribute);
 
-	cout << "" << endl;
 	printBtree(ixfileHandle, &btPage);
-	cout << "" << endl;
 	/*
 	 * {
 	 "keys":["P"],
@@ -676,8 +674,7 @@ Entry* Entry::getEntry(char* entry, AttrType aType, BTPageType pageType) {
 }
 
 Entry::~Entry() {
-delete key;
-key = NULL;
+
 }
 Key* Entry::getKey() {
 	if (isKeyDataSet){
@@ -700,7 +697,7 @@ int Entry::getKeyOffset() {
 }
 
 int Entry::getRIDOffset() {
-	return getKeyOffset() + getKey()->getKeySize();
+	return getKeyOffset() + key->getKeySize();
 }
 
 Key::~Key() {
@@ -808,7 +805,7 @@ EntryComparator::~EntryComparator() {
 
 }
 
-int IntermediateComparator::compare(Entry& a , Entry& b)  {
+int IntermediateComparator::compare(Entry a, Entry b) {
 	if (a.getKey()->compare(*(b.getKey())) != 0)
 		return a.getKey()->compare(*(b.getKey()));
 	else {
@@ -822,7 +819,7 @@ int IntermediateComparator::compare(Entry& a , Entry& b)  {
 	}
 }
 
-int LeafComparator::compare(Entry& a , Entry& b)  {
+int LeafComparator::compare(Entry a, Entry b) {
 	Key *aKey = a.getKey();
 	Key *bKey = b.getKey();
 
