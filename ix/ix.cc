@@ -1229,17 +1229,49 @@ PageNum BTPage::getSiblingNode(){
 }
 
 string BTPage::toString(){
-
-string stringEntries = "";
-for(int i=0; i<slots.size(); i++){
-	string sEntry = "\"" +  getEntry(i)->toString() + "\"";
-	stringEntries = stringEntries +   sEntry ;
-	if (i!=slots.size() - 1){
-		stringEntries = stringEntries + ",";
+	string stringEntries = "";
+	 string sEntry = "";
+	 shared_ptr<Entry> previousEntry = getEntry(0);
+	 shared_ptr<Key> previousKey = previousEntry->getKey();
+	 RID rid = previousEntry->getRID();
+	 std::vector<RID> rids;
+	 rids.push_back(rid);
+	for(int i=1; i<slots.size(); i++){
+	  shared_ptr<Entry> currentEntry = getEntry(i);
+	  shared_ptr<Key> currentKey = currentEntry->getKey();
+	  if (currentKey->compare(*previousKey) != 0){
+	    string ridString = "";
+	    for (RID eachRID : rids){
+	      ridString += std::to_string(eachRID.pageNum) + "," +
+	        std::to_string(eachRID.slotNum);
+	    }
+	    rids.clear();
+	    sEntry = "\"" +  previousKey->toString() +
+	      " : [(" +
+	      ridString +
+	      " )]";
+	      "\"";
+	      stringEntries = stringEntries +   sEntry ;
+	      if (i!=slots.size() - 1){
+	        stringEntries = stringEntries + ",";
+	      }
+	  }
+		// string sEntry = "\"" +  getEntry(i)->toString() + "\"";
+	  previousKey = currentKey;
+	  rids.push_back(currentEntry->getRID());
 	}
-}
 
-return stringEntries;
+	 string ridString = "";
+	 for (RID eachRID : rids){
+	   ridString += std::to_string(eachRID.pageNum) + "," +
+	     std::to_string(eachRID.slotNum);
+	 }
+	 sEntry = "\"" +  previousKey->toString() +
+	   " : [(" +
+	   ridString +
+	   " )]" + "\"";
+	 stringEntries = stringEntries +   sEntry ;
+	return stringEntries;
 
 }
 
