@@ -312,6 +312,12 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 
 	}
 
+
+	if(btPg)
+		delete btPg;
+	free(pageData);
+	free(leafEntryBuf);
+	free(entry);
 	return success;
 }
 ///**
