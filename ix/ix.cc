@@ -506,7 +506,9 @@ void IndexManager::printBtree(IXFileHandle &ixfileHandle,
 	ixfileHandle.fileHandle.readPage(rootPageID, pageData);
 	BTPage btPage(pageData, attribute);
 
+	cout << "" << endl;
 	printBtree(ixfileHandle, &btPage);
+	cout << "" << endl;
 	/*
 	 * {
 	 "keys":["P"],
@@ -697,7 +699,7 @@ int Entry::getKeyOffset() {
 }
 
 int Entry::getRIDOffset() {
-	return getKeyOffset() + key->getKeySize();
+	return getKeyOffset() + getKey()->getKeySize();
 }
 
 Key::~Key() {
