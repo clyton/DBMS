@@ -601,6 +601,20 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 }
 
 RC IX_ScanIterator::close() {
+
+    lowKey = 0;
+    highKey = 0;
+    lowKeyInclusive = false;
+    highKeyInclusive = false;
+    attribute.name = "";
+    attribute.type = TypeInt;
+    attribute.length = 0;
+    nextLeafEntry = 0;
+	highLeafEntry = 0;
+    isEOF = 0;
+	btPg = 0;
+	islot = 0;
+
 	return 0;
 }
 
