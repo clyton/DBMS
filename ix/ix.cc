@@ -676,7 +676,8 @@ Entry* Entry::getEntry(char* entry, AttrType aType, BTPageType pageType) {
 }
 
 Entry::~Entry() {
-
+delete key;
+key = NULL;
 }
 Key* Entry::getKey() {
 	if (isKeyDataSet){
