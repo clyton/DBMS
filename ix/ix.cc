@@ -799,7 +799,7 @@ EntryComparator::~EntryComparator() {
 
 }
 
-int IntermediateComparator::compare(Entry a, Entry b) {
+int IntermediateComparator::compare(Entry& a , Entry& b)  {
 	if (a.getKey()->compare(*(b.getKey())) != 0)
 		return a.getKey()->compare(*(b.getKey()));
 	else {
@@ -813,7 +813,7 @@ int IntermediateComparator::compare(Entry a, Entry b) {
 	}
 }
 
-int LeafComparator::compare(Entry a, Entry b) {
+int LeafComparator::compare(Entry& a , Entry& b)  {
 	Key *aKey = a.getKey();
 	Key *bKey = b.getKey();
 
