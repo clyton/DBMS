@@ -1271,14 +1271,47 @@ PageNum BTPage::getSiblingNode(){
 string BTPage::toString(){
 
 string stringEntries = "";
-for(int i=0; i<slots.size(); i++){
-	string sEntry = "\"" +  getEntry(i)->toString() + "\"";
-	stringEntries = stringEntries +   sEntry ;
-	if (i!=slots.size() - 1){
-		stringEntries = stringEntries + ",";
-	}
+ string sEntry = "";
+ Entry* previousEntry = getEntry(0);
+ Key *previousKey = previousEntry->getKey();
+ RID rid = previousEntry->getRID();
+ std::vector<RID> rids;
+ rids.push_back(rid);
+for(int i=1; i<slots.size(); i++){
+  Entry *currentEntry = getEntry(i);
+  Key* currentKey = currentEntry->getKey();
+  if (currentKey->compare(*previousKey) != 0){
+    string ridString = "";
+    for (RID eachRID : rids){
+      ridString += std::to_string(eachRID.pageNum) + "," +
+        std::to_string(eachRID.slotNum); 
+    }
+    rids.clear();
+    sEntry = "\"" +  previousKey->toString() +
+      " : [(" +
+      ridString +
+      " )]";
+      "\"";
+      stringEntries = stringEntries +   sEntry ;
+      if (i!=slots.size() - 1){
+        stringEntries = stringEntries + ",";
+      }
+  }
+	// string sEntry = "\"" +  getEntry(i)->toString() + "\"";
+  previousKey = currentKey;
+  rids.push_back(currentEntry->getRID());
 }
 
+ string ridString = "";
+ for (RID eachRID : rids){
+   ridString += std::to_string(eachRID.pageNum) + "," +
+     std::to_string(eachRID.slotNum); 
+ }
+ sEntry = "\"" +  previousKey->toString() +
+   " : [(" +
+   ridString +
+   " )]" + "\"";
+ stringEntries = stringEntries +   sEntry ;
 return stringEntries;
 
 }
