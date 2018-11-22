@@ -1194,7 +1194,7 @@ char* BTPage::getPage() {
 	return this->pageBuffer;
 }
 
-r_slot BTPage::getSiblingPageNum(){
+PageNum BTPage::getSiblingPageNum(){
 	return this->siblingPage;
 }
 

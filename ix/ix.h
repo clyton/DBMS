@@ -274,7 +274,7 @@ class BTPage {
   RC removeEntry(int slotNumber, char * const entryBuf);
   RC readEntry(r_slot slotNum, char * const buf);
   char *getPage();
-  r_slot getSiblingPageNum();
+  PageNum getSiblingPageNum();
   int getNumberOfSlots();
   SplitInfo* splitNodes(Entry &insertEntry, EntryComparator &comparator);
   Attribute getAttribute();
