@@ -11,6 +11,7 @@
 #include <iterator>
 #include <stack>
 #include <string>
+#include <memory>
 
 #include "../rbf/pfm.h"
 
@@ -186,7 +187,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 	memset(pageData, 0, PAGE_SIZE);
 	ixfileHandle.fileHandle.readPage(rootPageId, pageData);
 
-	BTPage *btPg = new BTPage(pageData, attribute);
+	shared_ptr<BTPage> btPg = make_shared<BTPage>(pageData, attribute);
 	stack<PageNum> traversal;
 	PageNum currentPageNum = rootPageId;
 	char* entry = (char*) malloc(PAGE_SIZE);
@@ -217,12 +218,9 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 			currentPageNum = ptrIEntry->getRightPtr();
 
 		}
-		if (btPg)
-			delete btPg;
 		memset(pageData, 0, PAGE_SIZE);
 		ixfileHandle.fileHandle.readPage(currentPageNum, pageData);
-		btPg = new BTPage(pageData, attribute);
-		delete ptrIEntry;
+		btPg = make_shared<BTPage>(pageData, attribute);
 	}
 	// we have reached the leaf page
 	// and traversal stack stores all our ancestor pages
@@ -264,7 +262,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 			traversal.pop();
 			char* pageData = (char*) malloc(PAGE_SIZE);
 			ixfileHandle.fileHandle.readPage(pageNum, pageData);
-			btPg = new BTPage(pageData, attribute);
+			btPg = make_shared<BTPage>(pageData, attribute);
 
 			if (btPg->isSpaceAvailableToInsertEntryOfSize(
 					splitEntry->getEntrySize())) {
@@ -302,7 +300,7 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 			char* intermediateRootPageBuffer = (char*) malloc(PAGE_SIZE);
 			BTPage::prepareEmptyBTPageBuffer(intermediateRootPageBuffer,
 					INTERMEDIATE);
-			btPg = new BTPage(intermediateRootPageBuffer, attribute);
+			btPg = make_shared<BTPage>(intermediateRootPageBuffer, attribute);
 			btPg->insertEntryInOrder(*splitEntry);
 
 			ixfileHandle.fileHandle.appendPage(btPg->getPage());
@@ -312,12 +310,6 @@ RC IndexManager::insertEntry(IXFileHandle &ixfileHandle,
 
 	}
 
-
-	if(btPg)
-		delete btPg;
-	free(pageData);
-	free(leafEntryBuf);
-	free(entry);
 	return success;
 }
 ///**
@@ -370,18 +362,18 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 	memset(pageData, 0, PAGE_SIZE);
 	ixfileHandle.fileHandle.readPage(rootPageId, pageData);
 
-	BTPage *btPg = new BTPage(pageData, attribute);
+	shared_ptr<BTPage> btPg = make_shared<BTPage>(pageData, attribute);
 	stack<PageNum> traversal;
 	PageNum currentPageNum = rootPageId;
 	char* entry = (char*) malloc(PAGE_SIZE);
 	while (btPg->getPageType() != BTPageType::LEAF) {
 		traversal.push(currentPageNum);
 		r_slot islot;
-		IntermediateEntry *ptrIEntry = NULL;
+		shared_ptr<IntermediateEntry> ptrIEntry;
 		for (islot = 0; islot < btPg->getNumberOfSlots(); islot++) {
 			memset(entry, 0, PAGE_SIZE);
 			btPg->readEntry(islot, entry);
-			ptrIEntry = new IntermediateEntry(entry, attribute.type);
+			ptrIEntry = make_shared<IntermediateEntry>(entry, attribute.type);
 			IntermediateComparator iComp;
 			if (iComp.compare(*ptrIEntry, leafEntry) > 0) { // if entry in node greater than leaf entry
 				break;
@@ -400,12 +392,9 @@ RC IndexManager::deleteEntry(IXFileHandle &ixfileHandle,
 			currentPageNum = ptrIEntry->getRightPtr();
 
 		}
-		if (btPg)
-			delete btPg;
 		memset(pageData, 0, PAGE_SIZE);
 		ixfileHandle.fileHandle.readPage(currentPageNum, pageData);
-		btPg = new BTPage(pageData, attribute);
-		delete ptrIEntry;
+		btPg = make_shared<BTPage>(pageData, attribute);
 	}
 
 	r_slot slotToDelete = btPg->isEntryPresent(leafEntry);
@@ -435,12 +424,12 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
         ix_ScanIterator.lowKeyInclusive = lowKeyInclusive;
         ix_ScanIterator.highKeyInclusive = highKeyInclusive;
 
-        BTPage *btPg = NULL;
-        Entry *leafEntry = NULL;
+        shared_ptr<BTPage> btPg;
+        shared_ptr<Entry> leafEntry;
 		PageNum rootPageId = getRootPageID(ixfileHandle);
 		char* pageData = (char*) malloc(PAGE_SIZE);
 		ixfileHandle.fileHandle.readPage(rootPageId, pageData);
-		btPg = new BTPage(pageData, attribute);
+		btPg = make_shared<BTPage>(pageData, attribute);
 		PageNum pgToTraverse = rootPageId;
 		char* entry = (char*) malloc(PAGE_SIZE);
         if(lowKey)
@@ -450,16 +439,16 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
             lowKeyRID.pageNum = USHRT_MAX;//TODO: Confirm if this is correct
             lowKeyRID.slotNum = USHRT_MAX; 
             r_slot entrySize = prepareLeafEntry(lowKeyLeafEntryBuf, lowKey, lowKeyRID, attribute);
-            leafEntry = new Entry(lowKeyLeafEntryBuf, attribute.type);
+            leafEntry = make_shared<Entry>(lowKeyLeafEntryBuf, attribute.type);
         }
 
 		while(btPg->getPageType() != BTPageType::LEAF){
 			r_slot islot;
-			IntermediateEntry *ptrIEntry = NULL;
+			shared_ptr<IntermediateEntry> ptrIEntry;
 			for ( islot = 0; islot < btPg->getNumberOfSlots(); islot++){
 //				memset(entry,0,PAGE_SIZE);
 //				btPg->readEntry(islot, entry);
-				ptrIEntry = dynamic_cast<IntermediateEntry*>(btPg->getEntry(islot));
+				ptrIEntry = dynamic_pointer_cast<IntermediateEntry>(btPg->getEntry(islot));
 				IntermediateComparator iComp;
 				if(leafEntry == 0 || iComp.compare(*ptrIEntry, *leafEntry) > 0){ // if entry in node greater than leaf entry
 					break;
@@ -471,17 +460,16 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
 			else{ 
 				pgToTraverse = ptrIEntry->getRightPtr();
 			}
-			if(btPg) delete btPg;
 			memset(pageData,0, PAGE_SIZE);
 			ixfileHandle.fileHandle.readPage(pgToTraverse, pageData);
-			btPg = new BTPage(pageData, attribute);
+			btPg = make_shared<BTPage>(pageData, attribute);
 		}
 
 		ix_ScanIterator.btPg = btPg;
 
         ix_ScanIterator.nextLeafEntry = leafEntry;
 
-		Entry* highLeafEntry = 0;
+		shared_ptr<Entry> highLeafEntry = 0;
 		if(highKey)
 		{
 			char* highKeyLeafEntryBuf = (char*) malloc(PAGE_SIZE);
@@ -489,7 +477,7 @@ RC IndexManager::scan(IXFileHandle &ixfileHandle, const Attribute &attribute,
             highKeyRID.pageNum = USHRT_MAX;
             highKeyRID.slotNum = USHRT_MAX; 
             r_slot entrySize = prepareLeafEntry(highKeyLeafEntryBuf, highKey, highKeyRID, attribute);
-            highLeafEntry = new Entry(highKeyLeafEntryBuf, attribute.type);
+            highLeafEntry = make_shared<Entry>(highKeyLeafEntryBuf, attribute.type);
 		}
 		ix_ScanIterator.highLeafEntry = highLeafEntry;
 
@@ -587,7 +575,7 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 			}
 			char* pageData = (char*) malloc(PAGE_SIZE);
 			ixfileHandle->fileHandle.readPage(siblingPageNum, pageData);
-			btPg = new BTPage(pageData, attribute);
+			btPg = make_shared<BTPage>(pageData, attribute);
 			islot = 0;
 		}	
 	}
@@ -595,12 +583,12 @@ RC IX_ScanIterator::getNextEntry(RID &rid, void *key) {
 	if(entryFound)
 	{
 		Entry hitEntry(entry, attribute.type);
-		Key* hitKey = hitEntry.getKey();
 		rid = hitEntry.getRID();
+		shared_ptr<Key> hitKey = hitEntry.getKey();
 		r_slot keySize = hitKey->getKeySize();
 		r_slot keyOffset = hitEntry.getKeyOffset();
 		memcpy(key, entry + keyOffset, keySize);
-		nextLeafEntry = new Entry(entry, attribute.type);
+		nextLeafEntry = make_shared<Entry>(entry, attribute.type);
 		return 0;
 	}
 
@@ -648,26 +636,26 @@ Entry::Entry(char* entry, AttrType atype) {
 	this->entry = entry;
 	switch (aType) {
 	case TypeReal:
-		key = new FloatKey();
+		key = make_shared<FloatKey>();
 		break;
 	case TypeInt:
-		key = new IntKey();
+		key = make_shared<IntKey>();
 		break;
 	case TypeVarChar:
-		key = new StringKey();
+		key = make_shared<StringKey>();
 		break;
 	}
 }
 
-Entry* Entry::getEntry(char* entry, AttrType aType, BTPageType pageType) {
-	Entry *ptrEntry = NULL;
+shared_ptr<Entry> Entry::getEntry(char* entry, AttrType aType, BTPageType pageType) {
+	shared_ptr<Entry> ptrEntry;
 
 	switch (pageType) {
 	case INTERMEDIATE:
-		ptrEntry = new IntermediateEntry(entry, aType);
+		ptrEntry = make_shared<IntermediateEntry>(entry, aType);
 		break;
 	case LEAF:
-		ptrEntry = new Entry(entry, aType);
+		ptrEntry = make_shared<Entry>(entry, aType);
 		break;
 	default:
 		cerr << "Error: Invalid page type";
@@ -676,16 +664,16 @@ Entry* Entry::getEntry(char* entry, AttrType aType, BTPageType pageType) {
 }
 
 Entry::~Entry() {
-delete key;
-key = NULL;
+
 }
-Key* Entry::getKey() {
+shared_ptr<Key> Entry::getKey() {
 	if (isKeyDataSet){
 		return key;
 	}
 	int offset = getKeyOffset();
 isKeyDataSet = true;
-return key->setKeyData(entry, offset);
+key->setKeyData(entry, offset);
+return key;
 
 }
 RID Entry::getRID() {
@@ -707,14 +695,13 @@ Key::~Key() {
 
 }
 
-Key* StringKey::setKeyData(char* entry, int offset) {
+void StringKey::setKeyData(char* entry, int offset) {
 	int length;
 	memcpy(&length, entry + offset, sizeof(length));
 	offset += sizeof(length);
 	data.assign(entry + offset, entry + offset + length);
 	keySize = sizeof(length) + length;
 
-	return this;
 }
 
 r_slot StringKey::getKeySize() {
@@ -733,7 +720,7 @@ int StringKey::compare(Key& other) {
 	return this->data.compare(otherString);
 }
 
-Key* IntKey::setKeyData(char* entry, int offset) {
+void IntKey::setKeyData(char* entry, int offset) {
 	memcpy(&data, entry + offset, sizeof(int));
 	return this;
 }
@@ -754,7 +741,7 @@ int IntKey::compare(Key& other) {
 	return thisData - otherData;
 }
 
-Key* FloatKey::setKeyData(char* entry, int offset) {
+void FloatKey::setKeyData(char* entry, int offset) {
 	memcpy(&data, entry + offset, sizeof(float));
 	return this;
 }
@@ -823,8 +810,8 @@ int IntermediateComparator::compare(Entry& a , Entry& b)  {
 }
 
 int LeafComparator::compare(Entry& a , Entry& b)  {
-	Key *aKey = a.getKey();
-	Key *bKey = b.getKey();
+	shared_ptr<Key> aKey = a.getKey();
+	shared_ptr<Key> bKey = b.getKey();
 
 	return aKey->compare(*bKey);
 }
@@ -1073,7 +1060,7 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 	split->rightChild->setSiblingNode(this->siblingPage);
 
 	bool entryInserted = false;
-	Entry *slotEntry = NULL;
+	shared_ptr<Entry> slotEntry;
 	BTPage *pageToLoad = split->leftChild; // ptr to current page getting loaded
 	for (uint islot = 0; islot < slots.size(); islot++) {
 		if (islot * 2 >= slots.size() + 1) { // reached midway
@@ -1101,7 +1088,7 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 		pageToLoad->appendEntry(slotEntry->getEntryBuffer(),
 				slots[islot].length);
 
-		delete slotEntry;
+//		delete slotEntry;
 	}
 	if(!entryInserted){
 			pageToLoad->appendEntry(insertEntry.getEntryBuffer(),
@@ -1114,7 +1101,7 @@ SplitInfo* BTPage::splitNodes(Entry &insertEntry, EntryComparator& comparator) {
 	// if the page that got split is a leaf page
 	if (this->pageType == LEAF) {
 	// transform the leaf page to  an intermediate page
-		Entry* leafEntry = split->rightChild->getEntry(0);
+		shared_ptr<Entry> leafEntry = split->rightChild->getEntry(0);
 	// choose the first entry from the right page and make it the parent
 		prepareIntermediateEntry(intermediateEntryBuffer,
 				leafEntry->getEntryBuffer(), leafEntry->getEntrySize(),
@@ -1183,7 +1170,7 @@ RC BTPage::insertEntryInOrder(Entry& entry) {
 	r_slot numberOfSlots = this->getNumberOfSlots();
 	IntermediateComparator icomp; // for insert cmp both key,rid in leaf
 	while (islot < numberOfSlots) {
-		Entry *pageLeafEntry = getEntry(islot);
+		shared_ptr<Entry> pageLeafEntry = getEntry(islot);
 		if (icomp.compare(*pageLeafEntry, entry) > 0) {
 			break;
 		}
@@ -1205,10 +1192,11 @@ void IndexManager::printBtree(IXFileHandle &ixfileHande, BTPage* root) const {
 
 	if (root->getPageType() == INTERMEDIATE){
 		printf(R"( { "keys" : [%s], "children" : [ )", root->toString().c_str());
-		IntermediateEntry *entry;
+//		IntermediateEntry *entry;
+		shared_ptr<IntermediateEntry> entry;
 		char* pageBuffer = (char*) malloc(PAGE_SIZE);
 		for (int i=0; i<root->getNumberOfSlots(); i++){
-			entry = dynamic_cast<IntermediateEntry*>(root->getEntry(i));
+			entry = dynamic_pointer_cast<IntermediateEntry>(root->getEntry(i));
 			ixfileHande.fileHandle.readPage(entry->getLeftPtr(), pageBuffer);
 			printBtree(ixfileHande, new BTPage(pageBuffer, root->getAttribute()));
 			printf(",");
@@ -1248,7 +1236,7 @@ void IndexManager::printBtree(IXFileHandle &ixfileHande, BTPage* root) const {
 	 */
 }
 
-Entry* BTPage::getEntry(r_slot slotNum) {
+shared_ptr<Entry> BTPage::getEntry(r_slot slotNum) {
 
 	if (slotNum < 0 || slotNum >= slots.size()) {
 		cerr << "Invalid slot num " << slotNum;
@@ -1256,7 +1244,7 @@ Entry* BTPage::getEntry(r_slot slotNum) {
 	}
 	char* slotEntryBuf = (char*) malloc(PAGE_SIZE);
 	readEntry(slotNum, slotEntryBuf);
-	Entry* slotEntry = Entry::getEntry(slotEntryBuf, attribute.type, pageType);
+	shared_ptr<Entry> slotEntry = Entry::getEntry(slotEntryBuf, attribute.type, pageType);
 
 	return slotEntry;
 
@@ -1367,7 +1355,7 @@ r_slot BTPage::isEntryPresent(Entry entry){
 	IntermediateComparator icomp; // for insert cmp both key,rid in leaf
 	bool entryFound = false;
 	while (islot < numberOfSlots) {
-		Entry *pageLeafEntry = getEntry(islot);
+		shared_ptr<Entry> pageLeafEntry = getEntry(islot);
 		if (icomp.compare(*pageLeafEntry, entry) == 0) {
 			entryFound = true;
 			break;

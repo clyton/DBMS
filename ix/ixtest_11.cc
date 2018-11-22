@@ -25,7 +25,7 @@ int testCase_11(const string &indexFileName, const Attribute &attribute){
     unsigned key;
     unsigned inRecordNum = 0;
     unsigned outRecordNum = 0;
-    unsigned numOfTuples = 1000 * 1000;
+    unsigned numOfTuples = 100;
 
     // create index file
     RC rc = indexManager->createFile(indexFileName);

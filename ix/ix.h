@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <memory>
 
 #include "../rbf/rbfm.h"
 
@@ -82,10 +83,10 @@ class IX_ScanIterator {
         const void* highKey;
         bool lowKeyInclusive;
         bool highKeyInclusive;
-        Entry* nextLeafEntry;
-        Entry* highLeafEntry;
+        shared_ptr<Entry> nextLeafEntry;
+        shared_ptr<Entry> highLeafEntry;
         int isEOF;
-        BTPage* btPg;
+        shared_ptr<BTPage> btPg;
         r_slot islot;
 
 
@@ -127,7 +128,7 @@ class IXFileHandle {
 
 class Key{
 public:
-	virtual Key* setKeyData(char* entry, int offset) = 0;
+	virtual void setKeyData(char* entry, int offset) = 0;
 	virtual r_slot getKeySize() = 0;
 	virtual ~Key();
 	virtual int compare(Key& other) = 0;
@@ -139,7 +140,7 @@ private:
 	string data;
 	r_slot keySize = 0;
 public:
-	Key* setKeyData(char* entry, int offset);
+	void setKeyData(char* entry, int offset);
 	r_slot getKeySize() ;
 	int compare(Key& other);
 	string getData();
@@ -150,7 +151,7 @@ class IntKey : public Key{
 private:
 	int data;
 public:
-	Key* setKeyData(char* entry, int offset);
+	void setKeyData(char* entry, int offset);
 	r_slot getKeySize() ;
 	int compare(Key& other);
 	int getData();
@@ -161,7 +162,7 @@ class FloatKey : public Key{
 private:
 	float data;
 public:
-	 Key* setKeyData(char* entry, int offset);
+	 void setKeyData(char* entry, int offset);
 	r_slot getKeySize() ;
 	 int compare(Key& other);
 	float getData();
@@ -171,8 +172,8 @@ public:
 class Entry{
 public:
 	Entry(char* entry, AttrType aType);
-	static Entry* getEntry(char* entry, AttrType aType, BTPageType pageType);
-	virtual Key* getKey();
+	static shared_ptr<Entry> getEntry(char* entry, AttrType aType, BTPageType pageType);
+	virtual shared_ptr<Key> getKey();
 	virtual RID getRID();
 	virtual r_slot getEntrySize();
 	virtual int getKeyOffset();
@@ -181,7 +182,7 @@ public:
 	char* getEntryBuffer();
 	virtual string toString();
 private:
-	Key *key;
+	shared_ptr<Key> key;
 	bool isKeyDataSet = false;
 protected:
 	char* entry;
@@ -270,7 +271,7 @@ class BTPage {
   RC insertEntryInOrder(Entry& entry);
   RC insertEntry(const char *const entry, int slotNumber, int length);
   RC getEntry(r_slot slotNum, char * const buf);  // same as readEntry()
-  Entry* getEntry(r_slot slotNum);
+  shared_ptr<Entry> getEntry(r_slot slotNum);
   RC removeEntry(int slotNumber, char * const entryBuf);
   RC readEntry(r_slot slotNum, char * const buf);
   char *getPage();
