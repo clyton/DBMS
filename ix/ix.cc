@@ -1241,20 +1241,22 @@ string BTPage::toString(){
 	  shared_ptr<Key> currentKey = currentEntry->getKey();
 	  if (currentKey->compare(*previousKey) != 0){
 	    string ridString = "";
+	    int irid = 0;
 	    for (RID eachRID : rids){
-	      ridString += std::to_string(eachRID.pageNum) + "," +
-	        std::to_string(eachRID.slotNum);
+	      ridString += "(" + std::to_string(eachRID.pageNum) + "," +
+	        std::to_string(eachRID.slotNum) + ")" ;
+	      if (irid != rids.size() - 1)
+	    	  ridString += ",";
+	      irid++;
 	    }
 	    rids.clear();
+
 	    sEntry = "\"" +  previousKey->toString() +
-	      " : [(" +
+	      " : [" +
 	      ridString +
-	      " )]";
-	      "\"";
+	      " ]" + "\"";
 	      stringEntries = stringEntries +   sEntry ;
-	      if (i!=slots.size() - 1){
-	        stringEntries = stringEntries + ",";
-	      }
+	      stringEntries = stringEntries + ",";
 	  }
 		// string sEntry = "\"" +  getEntry(i)->toString() + "\"";
 	  previousKey = currentKey;
@@ -1262,14 +1264,18 @@ string BTPage::toString(){
 	}
 
 	 string ridString = "";
+	 int irid=0;
 	 for (RID eachRID : rids){
-	   ridString += std::to_string(eachRID.pageNum) + "," +
-	     std::to_string(eachRID.slotNum);
+	   ridString +=  "(" + std::to_string(eachRID.pageNum) + "," +
+	     std::to_string(eachRID.slotNum) + ")" ;
+	   if (irid != rids.size() - 1)
+		   ridString += ",";
+	   irid++;
 	 }
 	 sEntry = "\"" +  previousKey->toString() +
-	   " : [(" +
+	   " : [" +
 	   ridString +
-	   " )]" + "\"";
+	   " ]" + "\"";
 	 stringEntries = stringEntries +   sEntry ;
 	return stringEntries;
 
