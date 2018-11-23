@@ -1,34 +1,110 @@
 1. Basic information
-Team number (e.g., 01) : 
-#1 Student ID : 
-#1 Student Name : 
-#2 Student ID : 
-#2 Student Name : 
-OS (bit) :
-gcc version :
+Team number : 29
+
+#1 Student ID : 53649044 
+#1 Student Name : Clyton Dantis 
+OS (bit) : Linux Ubuntu 18.04 
+gcc version : 5.4.0
+
+#2 Student ID : 61167891 
+#2 Student Name : Sandhya Chandramohan 
+OS (bit) : MacOS High Sierra 10.13 
+gcc version : 5.4.0
 
 
 2. Meta-data page in an index file
-- Show your meta-data page of an index design if you have any. 
++---------------+----------------+------------------+
+| ROOT PAGE NUM | Attribute Type | Attribute Length |
+|               |                |                  |
+|               |                |                  |
+|               |                |                  |
+|               |                |                  |
+|               |                |                  |
+|               |                |                  |
++---------------+----------------+------------------+
+|    4 bytes    | 4 bytes        |      4 bytes     |
++---------------+----------------+------------------+
+|                                                   |
+|                   4096 bytes                      |
+|                                                   |
++---------------+----------------+------------------+
 
+The following 3 metadata information is stored in a header page in the index file
+- The Root page number 
+- The Attribute Type of the index
+- The Attribute Length of the index
+
+The header page is 4096 bytes in size.
 
 3. Index Entry Format
-- Show your index entry design (structure). 
 
+- Non-Leaf Node
+
++----------+-----+-----+-----------+
+| LEFT PTR | KEY | RID | RIGHT PTR |
++----------+-----+-----+-----------+
+|          |     |     |           |
++----------+-----+-----+-----------+
+|          |     |     |           |
++----------+-----+-----+-----------+
+
+The Non-leaf node entry has:
+- A Left Pointer pointing to the PageNum of the index page having keys less than itself
+- A Right Pointer pointing to the PageNum of the index page having keys greater than equal to itself
+- The Key can be any attribute type - Int, Real or Varchar. Varchar.
+- The format of a Varchar key is length (4 bytes) followed by the value of the key
+- The Key is followed by the RID of the indexed record which is (PageNum, SlotNum)
+
+- Leaf Node
+
++---------+---------+
+|   KEY   |   RID   |
++---------+---------+
+|         |         |
++---------+---------+
+|         |         |
++---------+---------+
+
+The Leaf node entry has:
+- A Key which can be of any attribute type - Int, Real, Varchar
+- The Key is followed by the RID of the indexed record which is (PageNum, SlotNum)
 
 4. Page Format
-- Show your internal-page (non-leaf node) design.
 
-- Show your leaf-page (leaf node) design.
++-----------+--------------+---------+----------+---------+
+| PAGE TYPE | NEIGHBOR PTR |   L/I   |          |         |
++-----------+--------------+---------+----------+---------+
+|           |              |         |          |         |
++-----------+--------------+---------+----------+---------+
+|           |              |         |          |         |
++-----------+--------------+---------+----------+---------+
+|           |              |         |          | OFFSET* |
++-----------+--------------+---------+----------+---------+
+|  LENGTH*  |    OFFSET*   | LENGTH* |    FS    |    N    |
++-----------+--------------+---------+----------+---------+
+    <---------------------------------
+     Sorted Order of Slots
+
+- At the beginning of the page the Page Type is stored which is an enum of 4 bytes 
+having value LEAF = 0 for a Leaf page and INTERMEDIATE = 1 for a Non-Leaf page
+- The NEIGHBOR PTR in a Leaf Page points to the next Leaf page. It is not valid for a Non-Leaf page. 
+- The NEIGHBOR PTR has value UINT_MAX when in a Non-Leaf Page or in the last Leaf page before EOF
+- This is followed by the Leaf or Non-Leaf nodes in the design/format shared above
+- N - The no. of slots in the page
+- FS - The beginning of the Free Space in the page
+- The Slot Directory consisting of the LENGTH and OFFSET of each Leaf/Non-Leaf Intermediate entry 
+- The Slots in the Slot Directory are in sorted order
 
 
 5. Implementation Detail
 - Have you added your own source file (.cc or .h)?
+No have not added any new .cc or .h files.
 
-- Have you implemented non-lazy deletion? Choose Yes or No: 
+- Have you implemented non-lazy deletion? Choose Yes or No:
+No 
 
 - Have you implemented duplicated key handling that can span multiple pages? Choose Yes or No: 
-  If yes, please explain briefly how you have implemented this feature.
+Yes.
 
 - Other implementation details:
 
