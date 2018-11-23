@@ -286,6 +286,7 @@ class BTPage {
   const static PageNum NULL_PAGE = UINT_MAX;
   string toString();
   r_slot isEntryPresent(Entry e);
+  int binarySearch(Entry &entry);
 
 
  private:

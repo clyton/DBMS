@@ -191,17 +191,17 @@ RC IndexManager::traverse(IXFileHandle &ixfileHandle,
 	while (btPg->getPageType() != BTPageType::LEAF) {
 		traversal.push(currentPageNum);
 		r_slot islot;
-		shared_ptr<IntermediateEntry> ptrIEntry;
-		for (islot = 0; islot < btPg->getNumberOfSlots(); islot++) {
-			ptrIEntry = dynamic_pointer_cast<IntermediateEntry>(btPg->getEntry(islot));
-			IntermediateComparator iComp;
-			if (iComp.compare(*ptrIEntry, *leafEntry) > 0) { // if entry in node greater than leaf entry
-				break;
-
-			}
-//			delete ptrIEntry;
+		bool right = false;
+		int index = btPg->binarySearch(*leafEntry);
+		if (index >= btPg->getNumberOfSlots()){
+			islot = index - 1;
+			right = true;
 		}
-		if (islot < btPg->getNumberOfSlots()) { // islot in range
+		else {
+			islot = index < 0? index + 1: index;
+		}
+		shared_ptr<IntermediateEntry> ptrIEntry = dynamic_pointer_cast<IntermediateEntry>(btPg->getEntry(islot));
+		if (!right) { // islot in range
 			currentPageNum = ptrIEntry->getLeftPtr();
 		} else { //islot is out of range
 				 // this means all entries in the file were smaller than
@@ -1135,18 +1135,40 @@ RC BTPage::insertEntryInOrder(Entry& entry) {
 		return failure;
 	}
 
-	r_slot islot = 0;
 	r_slot numberOfSlots = this->getNumberOfSlots();
 	IntermediateComparator icomp; // for insert cmp both key,rid in leaf
-	while (islot < numberOfSlots) {
-		shared_ptr<Entry> pageLeafEntry = getEntry(islot);
-		if (icomp.compare(*pageLeafEntry, entry) > 0) {
-			break;
-		}
-		islot++;
-	}
+	int islot = binarySearch(entry);
+	if (islot < 0) islot++ ;
 	this->insertEntry(entry.getEntryBuffer(), islot, entry.getEntrySize());
 	return success;
+}
+/**
+ * Find the index of the smallest Entry greater than equal to
+ * @{code entry}
+ * @param entry :
+ * @return the index position of the smallest entry greater than entry
+ */
+int BTPage::binarySearch(Entry &entry){
+	int high = slots.size() - 1;
+	int low = 0;
+	int mid = 0;
+	IntermediateComparator icomp;
+
+	while(high >= low){
+		mid = low + (high-low)/2;
+		shared_ptr<Entry> midEntry = getEntry(mid);
+
+		if (icomp.compare(entry, *midEntry) >= 0){
+			low = mid + 1;
+		}
+		else {
+			high = mid - 1;
+		}
+
+	}
+
+	return high+1;
+
 }
 
 char* BTPage::getPage() {
