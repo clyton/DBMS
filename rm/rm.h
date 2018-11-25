@@ -75,6 +75,20 @@ public:
 
   void persistCurrentTableId();
 
+  RC createIndex(const string &tableName, const string &attributeName);
+
+  RC destroyIndex(const string &tableName, const string &attributeName);
+
+  // indexScan returns an iterator to allow the caller to go through qualified entries in index
+  RC indexScan(const string &tableName,
+                        const string &attributeName,
+                        const void *lowKey,
+                        const void *highKey,
+                        bool lowKeyInclusive,
+                        bool highKeyInclusive,
+                        RM_IndexScanIterator &rm_IndexScanIterator);
+
+
   // Extra credit work (10 points)
 public:
   RC addAttribute(const string &tableName, const Attribute &attr);
@@ -85,6 +99,8 @@ protected:
   RelationManager();
   ~RelationManager();
 
+private:
+  static RelationManager *_rm;
 private:
   RecordBasedFileManager *rbfm;
   const string columnCatalog = "Columns.tbl";
