@@ -13,7 +13,7 @@ RC privateTestCase_4() {
 	RC rc = success;
 	// Functions Tested
 	// Filter
-	// BNLJoin - optional for undergrad solo
+	// BNLJoin
 	cerr << endl << "***** In QE Private Test Case 4 *****" << endl;
 
 	// Prepare the iterator and condition

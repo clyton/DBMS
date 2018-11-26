@@ -10,8 +10,7 @@
 #include "qe_test_util.h"
 
 RC testCase_8() {
-	// Mandatory for - grad teams/solos
-	// Optional for - undergrad solo (+5 extra credit points will be given based on the results of the BNLJ related tests)
+	// Mandatory for all
 	// Functions Tested
 	// 1. BNLJoin -- on TypeInt Attribute
 	// 2. Filter -- on TypeInt Attribute

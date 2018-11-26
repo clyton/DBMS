@@ -10,8 +10,7 @@
 #include "qe_test_util.h"
 
 RC privateTestCase_9() {
-	// Mandatory for the grad teams/solos
-	// Optional for the undergrad solo
+	// Mandatory for all
 	// (+5 extra credit points will be given based on the results of the basic aggregation related tests)
 	// 1. Basic aggregation - MIN
 	// SELECT MIN(largeleft.B) from largeleft

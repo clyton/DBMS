@@ -10,8 +10,7 @@
 #include "qe_test_util.h"
 
 RC testCase_13() {
-	// Mandatory for the grad teams/solos
-	// Optional for undergrad solos: +5 extra credit points will be given based on the results of the basic aggregation related tests
+	// Mandatory for all
 	// 1. Basic aggregation - max
 	// SELECT max(left.B) from left
     cerr << "***** In QE Test Case 13 *****" << endl;

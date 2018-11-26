@@ -10,8 +10,7 @@
 #include "qe_test_util.h"
 
 RC testCase_7() {
-	// Mandatory for grad teams/solos
-	// Optional for - undergrad solo (+5 extra credit points will be given based on the results of the BNLJ related tests)
+	// Mandatory for all
 	// 1. BNLJoin -- on TypeInt Attribute
 	// SELECT * FROM left, right where left.B = right.B
 	cerr << endl << "***** In QE Test Case 7 *****" << endl;
