@@ -1,6 +1,5 @@
 
 #include "qe.h"
-#include "../rbf/rbfm.h"
 
 #include <stddef.h>
 #include <cmath>
@@ -8,6 +7,7 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+
 
 
 Filter::Filter(Iterator* input, const Condition &condition) {
@@ -24,15 +24,14 @@ RawRecord::RawRecord(char* rawRecord, vector<Attribute> &attrs){
 
 
 void RawRecord::setUpAttributeValue(){
-	int sizeOfNullIndicatorArray = ceil(attributes.size()/8.0);
-	unsigned char* nullIndicatorArray = new unsigned char[sizeOfNullIndicatorArray]();
-	memcpy(&nullIndicatorArray, rawRecord, sizeOfNullIndicatorArray);
-	int offset = sizeOfNullIndicatorArray;
+	int size = getNullIndicatorSize();
+
+	int offset = size;
 	for (size_t i = 0; i < attributes.size(); ++i) {
 
 		Value value;
 		value.type = attributes[i].type;
-		if(isFieldNull(nullIndicatorArray, (int)i)){
+		if(isFieldNull(i)){
 			value.data = nullptr;
 			attributeValue.push_back(value);
 			continue;
@@ -102,3 +101,23 @@ bool ConditionEvaluator::evaluateFor(RawRecord& rawRecord){
 	return ( CheckCondition(lhsValue.type,(char*)lhsValue.data, value, compOp) );
 }
 
+
+bool RawRecord::isFieldNull(int index){
+	unsigned char* nullIndicatorArray = getNullIndicatorArray();
+	int byteNumber = index / 8;
+	bool isNull = nullIndicatorArray[byteNumber] & (1 << (7 - index % 8));
+	delete[] nullIndicatorArray;
+	return ( isNull );
+}
+
+unsigned char* RawRecord::getNullIndicatorArray() {
+	int size = getNullIndicatorSize();
+	unsigned char* nullIndicatorArray = new unsigned char[size]();
+	memcpy(&nullIndicatorArray, rawRecord, size);
+	return ( nullIndicatorArray );
+}
+
+int RawRecord::getNullIndicatorSize(){
+	int size = attributes.size()/8.0;
+	return ( size );
+}

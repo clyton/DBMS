@@ -314,11 +314,15 @@ public:
 	Value& getAttributeValue(string &attrName);
 	Value& getAttributeValue(Attribute& attr);
     Value& getAttributeValue(int attrIndex);
+    bool isFieldNull(int index);
+    unsigned char* getNullIndicatorArray();
+    int getNullIndicatorSize();
 private:
 	vector<Value> attributeValue;
 	char* rawRecord;
 	vector<Attribute> attributes;
 	void setUpAttributeValue();
+
 };
 #endif
 
