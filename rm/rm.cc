@@ -805,3 +805,21 @@ void RelationManager::readCurrentTableID()
 
   rbfm->closeFile(fileHandle);
 }
+
+RM_IndexScanIterator::RM_IndexScanIterator()
+{
+}
+
+RM_IndexScanIterator::~RM_IndexScanIterator()
+{
+}
+
+RC RM_IndexScanIterator::getNextEntry(RID &rid, void *key)
+{
+}
+
+RC RM_IndexScanIterator::close()
+{
+
+}
+
