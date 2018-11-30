@@ -379,6 +379,19 @@ RC RelationManager::getAttributes(const string &tableName, vector<Attribute> &at
   return status;
 }
 
+RC getIndexAttributeFromIndexCatalog(void* indexRow, Attribute &attribute)
+{
+  
+  return 0;
+}
+
+RC getIndexKeyFromTupleRawData(const void* data, void* key)
+{
+  return 0;
+}
+
+
+
 RC RelationManager::insertTuple(const string &tableName, const void *data, RID &rid)
 {
 	if (isSystemTable(tableName))
@@ -416,7 +429,10 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
 		string fileName;
 
     //Get attribute from indexRow
+    getIndexAttributeFromIndexCatalog(indexRow, attribute);
+    
     //Get key from insert raw data
+    getIndexKeyFromTupleRawData(data, key);
 
 		if(ixManager->openFile(fileName, ixFileHandle) != 0){
 			return -1;
@@ -449,14 +465,52 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
   rbfm->closeFile(fileHandle);
 
   //Get tableId from given tableName
+  RID tableIdRID;
+	const int tableId = getTableIdForTable(tableName, tableIdRID);
 
   //scan Index.tbl by tableId to get all attributes having indexes from current table
+  vector<string> attributeNames;
+	attributeNames.push_back("index-name");
+	attributeNames.push_back("index-file-name");
+	RM_ScanIterator rm_ScanIterator;
+	scan(indexCatalog, "table-id", EQ_OP, &tableId, attributeNames, rm_ScanIterator);
+  
+  //for each row of scan result, get the attribute
+  void* indexRow = malloc(PAGE_SIZE);
+  void* currKey = malloc(PAGE_SIZE);
+  void* currData = malloc(PAGE_SIZE);
+	Attribute attribute;
+	IndexManager* ixManager = IndexManager::instance();
+	IXFileHandle ixFileHandle;
+  RID indexRID;
+	while(rm_ScanIterator.getNextTuple(indexRID, indexRow) != -1){
+		string attrName;
+		string fileName;
 
-  //for each row of scan result, get the attribute 
-  //From the rid read the tuple and get the key
-  //delete the index entry by rid and key
+    if(ixManager->openFile(fileName, ixFileHandle) != 0){
+			return -1;
+		}
 
+    //Get attribute from indexRow
+    getIndexAttributeFromIndexCatalog(indexRow, attribute);
+    
+    //From the rid read the tuple and get the curr key
+    rbfm->readRecord(fileHandle, recordDescriptor, rid, currData);
+    getIndexKeyFromTupleRawData(currData, currKey);
 
+    //delete the index entry by rid and curr key
+    if(ixManager->deleteEntry(ixFileHandle, attribute, currKey, rid) != 0){
+			return -1;
+		}
+
+		if(ixManager->closeFile(ixFileHandle) != 0){
+			return -1;
+		}
+	}
+
+	free(indexRow);
+  free(currKey);
+  free(currData); 
 
   return 0;
 }
@@ -474,17 +528,63 @@ RC RelationManager::updateTuple(const string &tableName, const void *data, const
   rbfm->closeFile(fileHandle);
 
   //Get tableId from given tableName
-
+  RID tableIdRID;
+	const int tableId = getTableIdForTable(tableName, tableIdRID);
+  
   //scan Index.tbl by tableId to get all attributes having indexes from current table
+  vector<string> attributeNames;
+	attributeNames.push_back("index-name");
+	attributeNames.push_back("index-file-name");
+	RM_ScanIterator rm_ScanIterator;
+	scan(indexCatalog, "table-id", EQ_OP, &tableId, attributeNames, rm_ScanIterator);
 
   //for each row of scan result, get the attribute 
-  //From the rid read the tuple and get the key
+  void* indexRow = malloc(PAGE_SIZE);
+	void* key = malloc(PAGE_SIZE);
+  void* currKey = malloc(PAGE_SIZE);
+  void* currData = malloc(PAGE_SIZE);
+	Attribute attribute;
+	IndexManager* ixManager = IndexManager::instance();
+	IXFileHandle ixFileHandle;
+  RID indexRID;
+	while(rm_ScanIterator.getNextTuple(indexRID, indexRow) != -1){
+		string attrName;
+		string fileName;
 
-  //delete the index entry by rid and key
+    if(ixManager->openFile(fileName, ixFileHandle) != 0){
+			return -1;
+		}
 
-  //get new key from data
-  //insert an index entry by new key and rid
+    //Get attribute from indexRow
+    getIndexAttributeFromIndexCatalog(indexRow, attribute);
+    
+    //From the rid read the tuple and get the curr key
+    
+    rbfm->readRecord(fileHandle, recordDescriptor, rid, currData);
+    getIndexKeyFromTupleRawData(currData, currKey);
 
+    //delete the index entry by rid and curr key
+    if(ixManager->deleteEntry(ixFileHandle, attribute, currKey, rid) != 0){
+			return -1;
+		}
+
+    //get new key from data
+    getIndexKeyFromTupleRawData(data, key);
+    
+    //insert an index entry by new key and rid
+		if(ixManager->insertEntry(ixFileHandle, attribute, key, rid) != 0){
+			return -1;
+		}
+
+		if(ixManager->closeFile(ixFileHandle) != 0){
+			return -1;
+		}
+	}
+
+	free(indexRow);
+	free(key);
+  free(currKey);
+  free(currData);
 
   return 0;
 }
