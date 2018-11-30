@@ -392,7 +392,48 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
   rbfm->openFile(fileName, fileHandle);
   RC status = rbfm->insertRecord(fileHandle, recordDescriptor, data, rid);
   rbfm->closeFile(fileHandle);
-  return status;
+
+  //get tableId of given tableName
+	RID tableIdRID;
+	const int tableId = getTableIdForTable(tableName, tableIdRID);
+
+	//scan the Index.tbl to check which attributes of given table have indexes on them
+	vector<string> attributeNames;
+	attributeNames.push_back("index-name");
+	attributeNames.push_back("index-file-name");
+	RM_ScanIterator rm_ScanIterator;
+	scan(indexCatalog, "table-id", EQ_OP, &tableId, attributeNames, rm_ScanIterator);
+
+	//create index entry for each row returned by Index.tbl
+	void* indexRow = malloc(PAGE_SIZE);
+	void* key = malloc(PAGE_SIZE);
+	Attribute attribute;
+	IndexManager* ixManager = IndexManager::instance();
+	IXFileHandle ixFileHandle;
+  RID indexRID;
+	while(rm_ScanIterator.getNextTuple(indexRID, indexRow) != -1){
+		string attrName;
+		string fileName;
+
+    //Get attribute from indexRow
+    //Get key from insert raw data
+
+		if(ixManager->openFile(fileName, ixFileHandle) != 0){
+			return -1;
+		}
+
+		if(ixManager->insertEntry(ixFileHandle, attribute, key, rid) != 0){
+			return -1;
+		}
+
+		if(ixManager->closeFile(ixFileHandle) != 0){
+			return -1;
+		}
+	}
+
+	free(indexRow);
+	free(key);
+  return 0;
 }
 
 RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
@@ -406,7 +447,18 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
   rbfm->openFile(fileName, fileHandle);
   RC status = rbfm->deleteRecord(fileHandle, recordDescriptor, rid);
   rbfm->closeFile(fileHandle);
-  return status;
+
+  //Get tableId from given tableName
+
+  //scan Index.tbl by tableId to get all attributes having indexes from current table
+
+  //for each row of scan result, get the attribute 
+  //From the rid read the tuple and get the key
+  //delete the index entry by rid and key
+
+
+
+  return 0;
 }
 
 RC RelationManager::updateTuple(const string &tableName, const void *data, const RID &rid)
@@ -420,7 +472,21 @@ RC RelationManager::updateTuple(const string &tableName, const void *data, const
   rbfm->openFile(fileName, fileHandle);
   RC status = rbfm->updateRecord(fileHandle, recordDescriptor, data, rid);
   rbfm->closeFile(fileHandle);
-  return status;
+
+  //Get tableId from given tableName
+
+  //scan Index.tbl by tableId to get all attributes having indexes from current table
+
+  //for each row of scan result, get the attribute 
+  //From the rid read the tuple and get the key
+
+  //delete the index entry by rid and key
+
+  //get new key from data
+  //insert an index entry by new key and rid
+
+
+  return 0;
 }
 
 RC RelationManager::readTuple(const string &tableName, const RID &rid, void *data)
@@ -566,9 +632,8 @@ RC RelationManager::createIndex(const string &tableName, const string &attribute
   char *indexCatalogRecord = (char*) malloc(PAGE_SIZE);
 
   memset(indexCatalogRecord,0,PAGE_SIZE);
-  indexRecordPrp
-                                  .setField(4)          
-                                  .setField("table-id") 
+  indexRecordPrp        
+                                  .setField(tableId) 
                                   .setField(attributeName)
                                   .setField(fileName)         
                                   .prepareRecord(indexCatalogRecord);
@@ -648,7 +713,6 @@ RC RelationManager::indexScan(const string &tableName,
 	}
 
 	ixManager->scan(rm_IndexScanIterator.ixFileHandle, currAttribute, lowKey, highKey, lowKeyInclusive, highKeyInclusive, rm_IndexScanIterator.ixScanIterator);
-
 	return 0;
 }
 
