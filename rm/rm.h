@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "../rbf/rbfm.h"
+#include "../ix/ix.h"
 
 using namespace std;
 
@@ -39,6 +40,9 @@ class RM_IndexScanIterator {
  public:
   RM_IndexScanIterator();  	// Constructor
   ~RM_IndexScanIterator(); 	// Destructor
+
+  IXFileHandle ixFileHandle;
+  IX_ScanIterator ixScanIterator;
 
   // "key" follows the same format as in IndexManager::insertEntry()
   RC getNextEntry(RID &rid, void *key);  	// Get next matching entry

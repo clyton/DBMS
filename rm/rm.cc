@@ -816,10 +816,17 @@ RM_IndexScanIterator::~RM_IndexScanIterator()
 
 RC RM_IndexScanIterator::getNextEntry(RID &rid, void *key)
 {
+  if(this->ixScanIterator.getNextEntry(rid, key) == -1){
+		return -1;
+	}
+	return 0;
 }
 
 RC RM_IndexScanIterator::close()
 {
-
+  if(this->ixScanIterator.close() != 0){
+		return -1;
+	}
+	return 0;
 }
 
