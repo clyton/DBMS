@@ -628,7 +628,28 @@ RC RelationManager::indexScan(const string &tableName,
                       bool highKeyInclusive,
                       RM_IndexScanIterator &rm_IndexScanIterator)
 {
-	return -1;
+  IndexManager* ixManager = IndexManager::instance();
+	const string fileName = tableName+"_"+attributeName+"_"+"idx";
+
+	if(ixManager->openFile(fileName, rm_IndexScanIterator.ixFileHandle) != 0){
+		return -1;
+	}
+
+  //Get Attribute from attribute name for ixscan
+  Attribute currAttribute;
+	vector<Attribute> attributes;
+	getAttributes(tableName, attributes);
+
+	for(unsigned i=0; i<attributes.size(); i++){
+		if(attributes[i].name.compare(attributeName) == 0){
+      currAttribute = attributes[i];
+      break;
+		}
+	}
+
+	ixManager->scan(rm_IndexScanIterator.ixFileHandle, currAttribute, lowKey, highKey, lowKeyInclusive, highKeyInclusive, rm_IndexScanIterator.ixScanIterator);
+
+	return 0;
 }
 
 
