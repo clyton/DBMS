@@ -11,9 +11,26 @@
 
 
 Filter::Filter(Iterator* input, const Condition &condition) {
-
+	this->input = input;
+	this->condition = condition;
+	getAttributes(attributes);
+	this->cEval = new ConditionEvaluator(condition, attributes);
 }
 
+RC Filter::getNextTuple(void *data) {
+	RC isEOF = input->getNextTuple(data);
+	RawRecord dataRecord((char*)data, attributes);
+	if (isEOF == 0){
+		if (cEval->evaluateFor(dataRecord)){
+			return ( isEOF );
+		}
+	}
+	return ( isEOF );
+
+}
+void Filter::getAttributes(vector<Attribute> &attrs) const{
+	input->getAttributes(attrs);
+}
 
 RawRecord::RawRecord(char* rawRecord, vector<Attribute> &attrs){
 	this->rawRecord = rawRecord;
@@ -82,7 +99,7 @@ Value& RawRecord::getAttributeValue(string &attributeName){
 	exit(1);
 }
 
-ConditionEvaluator::ConditionEvaluator(Condition& condition,vector<Attribute> &attrs){
+ConditionEvaluator::ConditionEvaluator(const Condition& condition,vector<Attribute> &attrs){
 	this->condition = condition;
 	this->attributes = attrs;
 }

@@ -39,7 +39,7 @@ struct Condition {
 
 class ConditionEvaluator{
 public:
-	ConditionEvaluator(Condition& condition,vector<Attribute> &attrs);
+	ConditionEvaluator(const Condition& condition,vector<Attribute> &attrs);
 	bool evaluateFor(Record &record);
 	bool evaluateFor(RawRecord &rawRecord);
 private:
@@ -213,13 +213,14 @@ class Filter : public Iterator {
         );
         ~Filter(){};
 
-        RC getNextTuple(void *data) {return QE_EOF;};
+        RC getNextTuple(void *data);
         // For attribute in vector<Attribute>, name it as rel.attr
-        void getAttributes(vector<Attribute> &attrs) const{};
+        void getAttributes(vector<Attribute> &attrs) const;
     private:
         Condition condition;
         Iterator *input;
         ConditionEvaluator *cEval;
+        vector<Attribute> attributes;
 };
 
 
