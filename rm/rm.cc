@@ -581,7 +581,43 @@ RC RelationManager::createIndex(const string &tableName, const string &attribute
 
 RC RelationManager::destroyIndex(const string &tableName, const string &attributeName)
 {
-	return -1;
+  string fileName = tableName + "_" + attributeName + "_idx";
+  
+  //destroy file
+  IndexManager* ixManager = IndexManager::instance();
+	if(ixManager->destroyFile(fileName) != 0){
+		return -1;
+	}
+
+  //Remove from Index.tbl
+
+  //form fileName in expected format byte array for scanning row in Index.tbl
+  int length = fileName.length();
+  void* fileNameBuf = malloc(length + sizeof(int));
+  memcpy(fileNameBuf, &length, sizeof(int));
+  memcpy((char*)fileNameBuf + sizeof(int), fileName.c_str(), length);
+
+  vector<string> attributeNames;
+  RM_ScanIterator rm_ScanIterator;
+  scan(indexCatalog, "index-file-name", EQ_OP, fileNameBuf, attributeNames, rm_ScanIterator);
+
+  RID indexRID;
+  void* indexRow = malloc(PAGE_SIZE);
+  if(rm_ScanIterator.getNextTuple(indexRID, indexRow)!=0)
+    return -1;
+  
+  if(rbfm->deleteRecord(rm_ScanIterator.fileHandle, indexTableRecordDescriptor, indexRID) != 0){
+		return -1;
+	}
+
+	if(rbfm->closeFile(rm_ScanIterator.fileHandle) != 0){
+		return -1;
+	}
+
+	free(indexRow);
+	free(fileNameBuf);
+
+	return 0;
 }
 
 RC RelationManager::indexScan(const string &tableName,
