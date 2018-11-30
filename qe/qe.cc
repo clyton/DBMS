@@ -53,10 +53,8 @@ void RawRecord::setUpAttributeValue(){
 			attributeValue.push_back(value);
 			continue;
 		}
-
-
 		// if the value is not null
-		value.data = new char[attributes[i].length + 1]();
+		value.data = new char[attributes[i].length]();
 
 		switch(value.type){
 		case TypeInt: memcpy(&value.data, rawRecord + offset, sizeof(int));
@@ -137,4 +135,61 @@ unsigned char* RawRecord::getNullIndicatorArray() {
 int RawRecord::getNullIndicatorSize(){
 	int size = attributes.size()/8.0;
 	return ( size );
+}
+
+Project::Project(Iterator *input, const vector<string> &attrNames){
+	this->input = input;
+	attributeNames = attrNames;
+}
+
+Project::~Project(){
+
+}
+
+RC Project::getNextTuple(void *data) {
+	char* unprojectedData = new char[PAGE_SIZE]();
+	RC isEOF = getNextTuple(unprojectedData);
+	if (isEOF != 0) return ( isEOF );
+
+	vector<Attribute> attrs;
+	input->getAttributes(attrs);
+	RawRecord dataRecord(unprojectedData, attrs);
+
+	int niaSize = this->attributeNames.size();
+	int offset = niaSize;
+	unsigned char* nullIndicator = new unsigned char[niaSize]();
+	for (size_t i=0; i<attributeNames.size(); i++){
+		Value value = dataRecord.getAttributeValue(attributeNames[i]);
+		if (value.data == nullptr) {
+			makeFieldNull(nullIndicator, i);
+			continue;
+		}
+		switch(value.type){
+		case TypeVarChar:
+			int length;
+			memcpy(&length, value.data, sizeof(int));
+			memcpy((char*)data + offset, value.data, sizeof(int) + length);
+			offset += sizeof(int) + length;
+			break;
+		default:
+			memcpy((char*)data + offset, value.data, sizeof(int));
+			offset += sizeof(int);
+			break;
+		}
+	}
+	return ( isEOF );
+}
+
+// For attribute in vector<Attribute>, name it as rel.attr
+void Project::getAttributes(vector<Attribute> &attrs) const {
+
+	vector<Attribute> unprojectedAttrs ;
+	input->getAttributes(unprojectedAttrs);
+
+	for(string attrName: attributeNames){
+		for (Attribute attr: unprojectedAttrs){
+			if (attrName.compare(attr.name) == 0)
+				attrs.push_back(attr);
+		}
+	}
 }
