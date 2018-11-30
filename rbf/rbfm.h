@@ -300,4 +300,6 @@ public:
   RawRecordPreparer &setRecordDescriptor(const vector<Attribute> &recordDescriptor);
 };
 
+bool CheckCondition(AttrType conditionAttributeType, char *attributeValue, const void *value, CompOp compOp);
+
 #endif

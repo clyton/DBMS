@@ -18,6 +18,11 @@ typedef enum{ MIN=0, MAX, COUNT, SUM, AVG } AggregateOp;
 //    For INT and REAL: use 4 bytes
 //    For VARCHAR: use 4 bytes for the length followed by the characters
 
+class ConditionEvaluator;
+class RawRecord;
+struct Condition;
+
+
 struct Value {
     AttrType type;          // type of value
     void     *data;         // value
@@ -30,6 +35,16 @@ struct Condition {
     bool    bRhsIsAttr;     // TRUE if right-hand side is an attribute and not a value; FALSE, otherwise.
     string  rhsAttr;        // right-hand side attribute if bRhsIsAttr = TRUE
     Value   rhsValue;       // right-hand side value if bRhsIsAttr = FALSE
+};
+
+class ConditionEvaluator{
+public:
+	ConditionEvaluator(Condition& condition,vector<Attribute> &attrs);
+	bool evaluateFor(Record &record);
+	bool evaluateFor(RawRecord &rawRecord);
+private:
+	Condition condition;
+	vector<Attribute> attributes;
 };
 
 
@@ -201,6 +216,10 @@ class Filter : public Iterator {
         RC getNextTuple(void *data) {return QE_EOF;};
         // For attribute in vector<Attribute>, name it as rel.attr
         void getAttributes(vector<Attribute> &attrs) const{};
+    private:
+        Condition condition;
+        Iterator *input;
+        ConditionEvaluator *cEval;
 };
 
 
@@ -289,4 +308,17 @@ class Aggregate : public Iterator {
         void getAttributes(vector<Attribute> &attrs) const{};
 };
 
+class RawRecord{
+public:
+	RawRecord(char* rawRecord, vector<Attribute> &attrs);
+	Value& getAttributeValue(string &attrName);
+	Value& getAttributeValue(Attribute& attr);
+    Value& getAttributeValue(int attrIndex);
+private:
+	vector<Value> attributeValue;
+	char* rawRecord;
+	vector<Attribute> attributes;
+	void setUpAttributeValue();
+};
 #endif
+

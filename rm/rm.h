@@ -127,8 +127,6 @@ private:
   // Columns(table-id:int, column-name:varchar(50), column-type:int, column-length:int, column-position:int)
   vector<Attribute> colRecordDescriptor;
 
-  vector<Attribute> tableIdRecordDescriptor;
-
   vector<Attribute> currentTableIDRecordDescriptor;
 
   RC getRecordDescriptorForTable(const string tableName, vector<Attribute> &recordDescriptor);
