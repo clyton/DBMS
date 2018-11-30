@@ -119,7 +119,9 @@ private:
   const string columnCatalog = "Columns.tbl";
   const string tableCatalog = "Tables.tbl";
   const string currentTableIDFile = "CurrentTableID.tbl";
+  const string indexCatalog = "Index.tbl";
   int current_table_id = 3;
+  int index_table_id = 4;
   // Describe schema of Tables catalog table
   vector<Attribute> tblRecordDescriptor;
 
@@ -130,6 +132,8 @@ private:
   vector<Attribute> tableIdRecordDescriptor;
 
   vector<Attribute> currentTableIDRecordDescriptor;
+
+  vector<Attribute> indexTableRecordDescriptor;
 
   RC getRecordDescriptorForTable(const string tableName, vector<Attribute> &recordDescriptor);
   int getTableIdForTable(string tableName, RID &rid);

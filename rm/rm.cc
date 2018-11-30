@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include "../rbf/pfm.h"
+#include "../ix/ix.h"
 
 RC success = 0;
 RC failure = 1;
@@ -43,6 +44,10 @@ RelationManager::RelationManager()
   colRecordDescriptor.push_back((Attribute){"column-position", TypeInt, 4});
 
   currentTableIDRecordDescriptor.push_back((Attribute){"table-id", TypeInt, 4});
+
+  indexTableRecordDescriptor.push_back((Attribute){"table-id", TypeInt, 4});
+  indexTableRecordDescriptor.push_back((Attribute){"index-name", TypeVarChar, 50});
+  indexTableRecordDescriptor.push_back((Attribute){"index-file-name", TypeVarChar, 50});
 }
 
 RelationManager::~RelationManager()
@@ -207,7 +212,6 @@ colCtlgPrp
   rbfm->insertRecord(tableIDFileHandle, currentTableIDRecordDescriptor, maxIDRecord, tableIDRID);
   rbfm->closeFile(tableIDFileHandle);
   free(maxIDRecord);
-
   return success;
 }
 
@@ -491,9 +495,88 @@ RC RelationManager::addAttribute(const string &tableName, const Attribute &attr)
   return -1;
 }
 
+RC getKeyFromData(const void* data, const Attribute &attribute, void* key)
+{
+  int offset = 1;
+  if(attribute.type == TypeVarChar)
+  {
+    int length;
+    memcpy(&length, (char*)data+offset, sizeof(int));
+    memcpy(key, (char*)data+offset, sizeof(int)+length);
+  }
+  else
+  {
+    memcpy(key, (char*)data + offset, sizeof(int));
+  }
+  return 0;
+}
+
 RC RelationManager::createIndex(const string &tableName, const string &attributeName)
 {
-	return -1;
+  vector<Attribute> attributes;
+  getAttributes(tableName, attributes);
+  Attribute currAttribute;
+  int i = 0;
+  for(i = 0; i< attributes.size(); i++)
+  {
+    if(attributes[i].name.compare(attributeName)==0)
+      currAttribute = attributes[i];
+  }
+
+  //create index file
+  int tableId;
+  RID rid;
+  getTableIdForTable(tableName, rid);
+  IndexManager* ixManager = IndexManager::instance();
+  string fileName = tableName + "_" + attributeName + "_" + "idx";
+  ixManager->createFile(fileName);
+
+  //index all the existing records
+  vector<string> attributeNames;
+	attributeNames.push_back(attributeName);
+
+  RM_ScanIterator rm_ScanIterator;
+  IXFileHandle ixFileHandle;
+  if(ixManager->openFile(fileName, ixFileHandle) != 0){
+		return -1;
+	}
+
+  scan(tableName, "", NO_OP, NULL, attributeNames, rm_ScanIterator);
+  void* data = malloc(PAGE_SIZE);
+	void* key = malloc(PAGE_SIZE);
+	while(rm_ScanIterator.getNextTuple(rid, data) != -1){
+		//get key from data
+    getKeyFromData(&data, currAttribute, &key);
+		ixManager->insertEntry(ixFileHandle, currAttribute, key, rid);
+	}
+
+  if(ixManager->closeFile(ixFileHandle) != 0){
+		return -1;
+	}
+
+  free(data);
+  free(key);
+
+  //insert in the index catalog
+  rbfm->createFile(indexCatalog);
+  FileHandle indexFileHandle;
+  rbfm->openFile(indexCatalog, indexFileHandle);
+  RID indexRecId;
+  RawRecordPreparer indexRecordPrp = RawRecordPreparer(indexTableRecordDescriptor);
+  char *indexCatalogRecord = (char*) malloc(PAGE_SIZE);
+
+  memset(indexCatalogRecord,0,PAGE_SIZE);
+  indexRecordPrp
+                                  .setField(4)          
+                                  .setField("table-id") 
+                                  .setField(attributeName)
+                                  .setField(fileName)         
+                                  .prepareRecord(indexCatalogRecord);
+  rbfm->insertRecord(indexFileHandle, indexTableRecordDescriptor, indexCatalogRecord, indexRecId);
+    
+  rbfm->closeFile(indexFileHandle);
+  free(indexCatalogRecord);
+	return 0;
 }
 
 RC RelationManager::destroyIndex(const string &tableName, const string &attributeName)
