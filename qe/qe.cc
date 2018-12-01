@@ -18,16 +18,21 @@ Filter::Filter(Iterator* input, const Condition &condition) {
 }
 
 RC Filter::getNextTuple(void *data) {
-	RC isEOF = input->getNextTuple(data);
-	RawRecord dataRecord((char*)data, attributes);
-	if (isEOF == 0){
-		if (cEval->evaluateFor(dataRecord)){
+	RC isEOF = false;
+	while(true){
+		RC isEOF = input->getNextTuple(data);
+		RawRecord dataRecord((char*)data, attributes);
+		if (isEOF != QE_EOF) {
+			if (cEval->evaluateFor(dataRecord)){
+				return ( isEOF );
+			}
+		}
+		else {
 			return ( isEOF );
 		}
 	}
-	return ( isEOF );
-
 }
+
 void Filter::getAttributes(vector<Attribute> &attrs) const{
 	input->getAttributes(attrs);
 }
