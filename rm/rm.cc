@@ -7,6 +7,7 @@
 
 #include "../rbf/pfm.h"
 #include "../ix/ix.h"
+#include "../rbf/rbfm.h"
 
 RC success = 0;
 RC failure = 1;
@@ -379,18 +380,12 @@ RC RelationManager::getAttributes(const string &tableName, vector<Attribute> &at
   return status;
 }
 
-RC getIndexAttributeFromIndexCatalog(void* indexRow, Attribute &attribute)
+RC getValueFromRawData(const void* data, void* key, const vector<Attribute> &recordDescriptor, const string &attributeName)
 {
-  
+  Record record = Record(recordDescriptor, (char*)data);
+  record.getAttributeValue(attributeName, (char*)key);
   return 0;
 }
-
-RC getIndexKeyFromTupleRawData(const void* data, void* key)
-{
-  return 0;
-}
-
-
 
 RC RelationManager::insertTuple(const string &tableName, const void *data, RID &rid)
 {
@@ -420,19 +415,26 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
 	//create index entry for each row returned by Index.tbl
 	void* indexRow = malloc(PAGE_SIZE);
 	void* key = malloc(PAGE_SIZE);
+  void* attributeName = malloc(PAGE_SIZE);
 	Attribute attribute;
 	IndexManager* ixManager = IndexManager::instance();
 	IXFileHandle ixFileHandle;
   RID indexRID;
 	while(rm_ScanIterator.getNextTuple(indexRID, indexRow) != -1){
-		string attrName;
-		string fileName;
 
     //Get attribute from indexRow
-    getIndexAttributeFromIndexCatalog(indexRow, attribute);
-    
+    getValueFromRawData(indexRow, attributeName, indexTableRecordDescriptor, "index-name");
+    for(int i=0; i< recordDescriptor.size(); i++)
+    {
+      if((recordDescriptor[i].name).compare((char*)attributeName)==0)
+      {
+        attribute = recordDescriptor[i];
+        break;
+      }
+    }
+
     //Get key from insert raw data
-    getIndexKeyFromTupleRawData(data, key);
+    getValueFromRawData(data, key, recordDescriptor, (char*)attributeName);
 
 		if(ixManager->openFile(fileName, ixFileHandle) != 0){
 			return -1;
@@ -449,6 +451,7 @@ RC RelationManager::insertTuple(const string &tableName, const void *data, RID &
 
 	free(indexRow);
 	free(key);
+  free(attributeName);
   return 0;
 }
 
@@ -479,25 +482,34 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
   void* indexRow = malloc(PAGE_SIZE);
   void* currKey = malloc(PAGE_SIZE);
   void* currData = malloc(PAGE_SIZE);
+  void* attributeName = malloc(PAGE_SIZE);
 	Attribute attribute;
 	IndexManager* ixManager = IndexManager::instance();
 	IXFileHandle ixFileHandle;
   RID indexRID;
 	while(rm_ScanIterator.getNextTuple(indexRID, indexRow) != -1){
-		string attrName;
-		string fileName;
 
     if(ixManager->openFile(fileName, ixFileHandle) != 0){
 			return -1;
 		}
 
     //Get attribute from indexRow
-    getIndexAttributeFromIndexCatalog(indexRow, attribute);
-    
+    getValueFromRawData(indexRow, attributeName, indexTableRecordDescriptor, "index-name");
+    for(int i=0; i< recordDescriptor.size(); i++)
+    {
+      if((recordDescriptor[i].name).compare((char*)attributeName)==0)
+      {
+        attribute = recordDescriptor[i];
+        break;
+      }
+    }
+
     //From the rid read the tuple and get the curr key
     rbfm->readRecord(fileHandle, recordDescriptor, rid, currData);
-    getIndexKeyFromTupleRawData(currData, currKey);
 
+    //Get key from insert raw data
+    getValueFromRawData(currData, currKey, recordDescriptor, (char*)attributeName);
+    
     //delete the index entry by rid and curr key
     if(ixManager->deleteEntry(ixFileHandle, attribute, currKey, rid) != 0){
 			return -1;
@@ -510,6 +522,7 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid)
 
 	free(indexRow);
   free(currKey);
+  free(attributeName);
   free(currData); 
 
   return 0;
@@ -541,6 +554,7 @@ RC RelationManager::updateTuple(const string &tableName, const void *data, const
   //for each row of scan result, get the attribute 
   void* indexRow = malloc(PAGE_SIZE);
 	void* key = malloc(PAGE_SIZE);
+  void* attributeName = malloc(PAGE_SIZE);
   void* currKey = malloc(PAGE_SIZE);
   void* currData = malloc(PAGE_SIZE);
 	Attribute attribute;
@@ -548,28 +562,36 @@ RC RelationManager::updateTuple(const string &tableName, const void *data, const
 	IXFileHandle ixFileHandle;
   RID indexRID;
 	while(rm_ScanIterator.getNextTuple(indexRID, indexRow) != -1){
-		string attrName;
-		string fileName;
 
     if(ixManager->openFile(fileName, ixFileHandle) != 0){
 			return -1;
 		}
 
+
     //Get attribute from indexRow
-    getIndexAttributeFromIndexCatalog(indexRow, attribute);
-    
+    getValueFromRawData(indexRow, attributeName, indexTableRecordDescriptor, "index-name");
+    for(int i=0; i< recordDescriptor.size(); i++)
+    {
+      if((recordDescriptor[i].name).compare((char*)attributeName)==0)
+      {
+        attribute = recordDescriptor[i];
+        break;
+      }
+    }
+
     //From the rid read the tuple and get the curr key
-    
     rbfm->readRecord(fileHandle, recordDescriptor, rid, currData);
-    getIndexKeyFromTupleRawData(currData, currKey);
+
+    //Get key from insert raw data
+    getValueFromRawData(currData, currKey, recordDescriptor, (char*)attributeName);
 
     //delete the index entry by rid and curr key
     if(ixManager->deleteEntry(ixFileHandle, attribute, currKey, rid) != 0){
 			return -1;
 		}
 
-    //get new key from data
-    getIndexKeyFromTupleRawData(data, key);
+    //Get key from insert raw data
+    getValueFromRawData(data, key, recordDescriptor, (char*)attributeName);
     
     //insert an index entry by new key and rid
 		if(ixManager->insertEntry(ixFileHandle, attribute, key, rid) != 0){
@@ -583,6 +605,7 @@ RC RelationManager::updateTuple(const string &tableName, const void *data, const
 
 	free(indexRow);
 	free(key);
+  free(attributeName);
   free(currKey);
   free(currData);
 
