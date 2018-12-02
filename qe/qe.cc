@@ -176,7 +176,7 @@ Project::~Project() {}
 
 RC Project::getNextTuple(void* data) {
   char* unprojectedData = new char[PAGE_SIZE]();
-  RC isEOF = getNextTuple(unprojectedData);
+  RC isEOF = input->getNextTuple(unprojectedData);
   if (isEOF != 0) return (isEOF);
 
   vector<Attribute> attrs;
