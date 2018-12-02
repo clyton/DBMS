@@ -41,7 +41,7 @@ void Filter::getAttributes(vector<Attribute>& attrs) const {
   input->getAttributes(attrs);
 }
 
-RawRecord::RawRecord(char* rawRecord, vector<Attribute>& attrs) {
+RawRecord::RawRecord(const char* rawRecord, vector<Attribute>& attrs) {
   this->rawRecord = rawRecord;
   this->attributes = attrs;
   setUpAttributeValue();
@@ -52,7 +52,7 @@ const vector<Attribute>& RawRecord::getAttributes() const {
   return (this->attributes);
 }
 
-char* RawRecord::getBuffer() const { return (rawRecord); }
+const char* RawRecord::getBuffer() const { return (rawRecord); }
 
 void RawRecord::setUpAttributeValue() {
   int size = getNullIndicatorSize();
@@ -207,6 +207,7 @@ RC Project::getNextTuple(void* data) {
         break;
     }
   }
+  memcpy(data, nullIndicator, niaSize);
   return (isEOF);
 }
 
@@ -242,6 +243,7 @@ BNLJoin::BNLJoin(
   this->getAttributes(joinedAttributes);
   // setup condition Evaluator
   this->cEval = new ConditionEvaluator(this->condition, joinedAttributes);
+  //  loadNextBlockInMemory();
 };
 
 BNLJoin::~BNLJoin() {
@@ -267,7 +269,7 @@ void BNLJoin::getAttributes(vector<Attribute>& attrs) const {
  * is valid. Else set it to nullptr.
  * @return false if you've reached the end of left buf, true otherwise
  */
-bool BNLJoin::getNextLeftRecord(char const* leftTupleBuf) {
+bool BNLJoin::getNextLeftRecord(const char*& leftTupleBuf) {
   if (leftTableBufferOffset >= this->sizeOfLeftBuffer) {
     leftTupleBuf = nullptr;
     return (false);
@@ -280,10 +282,17 @@ bool BNLJoin::getNextLeftRecord(char const* leftTupleBuf) {
   return (true);
 }
 
-void BNLJoin::resetLeftOffset() { leftTableBufferOffset = 0; }
+RC BNLJoin::resetLeftOffset() {
+  RC isEOF = 0;
+  if (sizeOfLeftBuffer == 0) {
+    RC isEOF = loadNextBlockInMemory();
+  }
+  leftTableBufferOffset = 0;
+  return (isEOF);
+}
 
 RC BNLJoin::setState() {
-  char* leftTuple = nullptr;
+  const char* leftTuple = nullptr;
   if (this->getNextLeftRecord(leftTuple)) {
     // there is a next record to read from left in-memory buffer
     // here you will use the existing rightTupleBuffer
@@ -294,14 +303,17 @@ RC BNLJoin::setState() {
     // here you will read a new rightTupleBuffer
     if (rightIn->getNextTuple(rightTupleBuffer) != QE_EOF) {
       // if there are more right tuples to read
-      resetLeftOffset();  // start reading left table from start
+      RC isEOF = resetLeftOffset();  // start reading left table from start
+      if (isEOF == QE_EOF) return QE_EOF;
       getNextLeftRecord(leftTuple);
       leftTuplePointer = leftTuple;
     } else {
       // if there are no more right records to read
-      bool areThereLeftBlocksToRead = loadNextBlockInMemory();
-      if (areThereLeftBlocksToRead) {
+      RC areThereLeftBlocksToRead = loadNextBlockInMemory();
+      if (areThereLeftBlocksToRead != QE_EOF) {
         // if there are more left blocks to read
+        getNextLeftRecord(leftTuple);
+        leftTuplePointer = leftTuple;
         rightIn->setIterator();
         rightIn->getNextTuple(rightTupleBuffer);
       } else {
@@ -321,35 +333,37 @@ RC BNLJoin::setState() {
  */
 RC BNLJoin::getNextTuple(void* data) {
   // create a joined record buffer
-
-  RC status = setState();
-
   const size_t MAX_JOINED_RECORD_SIZE = PAGE_SIZE * 2;
   char* joinedRecBuffer = new char[MAX_JOINED_RECORD_SIZE]();
 
-  // get schema for joined record
-  vector<Attribute> joinedAttrs;
-  getAttributes(joinedAttrs);
+  while (true) {
+    RC status = setState();  // set the left and right tuple
 
-  if (status == QE_EOF) return QE_EOF;
+    if (status == QE_EOF) {
+      delete[] joinedRecBuffer;
+      joinedRecBuffer = nullptr;
+      return QE_EOF;
+    }
 
-  // create raw record object to get record sizes
-  RawRecord leftRecord(leftTuplePointer, leftInAttributes);
-  RawRecord rightRecord(rightTupleBuffer, rightInAttributes);
+    // create raw record object to get record sizes
+    RawRecord leftRecord(leftTuplePointer, leftInAttributes);
+    RawRecord rightRecord(rightTupleBuffer, rightInAttributes);
 
-  // get record sizes for left and right records
-  size_t sizeOfLeftRecord = leftRecord.getRecordSize();
-  size_t sizeOfRightRecord = rightRecord.getRecordSize();
+    // get record sizes for left and right records
+    size_t sizeOfLeftRecord = leftRecord.getRecordSize();
+    size_t sizeOfRightRecord = rightRecord.getRecordSize();
 
-  // prepare a joined record buffer by copying left and right records
-  this->joinRecords(leftRecord, rightRecord, joinedRecBuffer);
-  RawRecord joinedRecord(joinedRecBuffer, joinedAttrs);
+    // prepare a joined record buffer by copying left and right records
+    this->joinRecords(leftRecord, rightRecord, joinedRecBuffer);
+    RawRecord joinedRecord(joinedRecBuffer, joinedAttributes);
 
-  // Evaluate the condition on this join
-  if (cEval->evaluateFor(joinedRecord)) {
-    // if the join satisfies the condition then copy the joined record
-    // to data buffer and return status success
-    memcpy(data, joinedRecord.getBuffer(), joinedRecord.getRecordSize());
+    // Evaluate the condition on this join
+    if (cEval->evaluateFor(joinedRecord)) {
+      // if the join satisfies the condition then copy the joined record
+      // to data buffer and return status success
+      memcpy(data, joinedRecord.getBuffer(), joinedRecord.getRecordSize());
+      break;
+    }
   }
   delete[] joinedRecBuffer;
   joinedRecBuffer = nullptr;

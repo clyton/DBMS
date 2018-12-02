@@ -243,13 +243,13 @@ class BNLJoin : public Iterator {
   int leftTableBufferOffset = -1;
   char *leftTableBuffer;
   char *rightTupleBuffer;
-  char *leftTuplePointer = nullptr;
+  const char *leftTuplePointer = nullptr;
   unsigned numPages;
   int sizeOfLeftBuffer = 0;
   RC loadNextBlockInMemory();
-  void resetLeftOffset();
+  RC resetLeftOffset();
   RC setState();
-  bool getNextLeftRecord(char const *leftTupleBuf);
+  bool getNextLeftRecord(const char *&leftTupleBuf);
   vector<Attribute> leftInAttributes;
   vector<Attribute> rightInAttributes;
   vector<Attribute> joinedAttributes;
@@ -318,7 +318,7 @@ class Aggregate : public Iterator {
 
 class RawRecord {
  public:
-  RawRecord(char *rawRecord, vector<Attribute> &attrs);
+  RawRecord(const char *rawRecord, vector<Attribute> &attrs);
   Value &getAttributeValue(string &attrName);
   Value &getAttributeValue(Attribute &attr);
   Value &getAttributeValue(int attrIndex);
@@ -326,12 +326,12 @@ class RawRecord {
   unsigned char *getNullIndicatorArray() const;
   int getNullIndicatorSize() const;
   size_t getRecordSize() const;
-  char *getBuffer() const;
+  const char *getBuffer() const;
   const vector<Attribute> &getAttributes() const;
 
  private:
   vector<Value> attributeValue;
-  char *rawRecord;
+  const char *rawRecord;
   vector<Attribute> attributes;
   void setUpAttributeValue();
 };
