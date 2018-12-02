@@ -2,6 +2,7 @@
 #include "qe.h"
 
 #include <stddef.h>
+#include <climits>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -9,7 +10,10 @@
 #include <string>
 
 #include "../rbf/pfm.h"
-#include "../rbf/test_util.h"
+
+int getSizeForNullIndicator(int fieldCount) {
+  return ceil((double)fieldCount / CHAR_BIT);
+}
 
 Filter::Filter(Iterator* input, const Condition& condition) {
   this->input = input;
@@ -143,7 +147,7 @@ unsigned char* RawRecord::getNullIndicatorArray() const {
 }
 
 int RawRecord::getNullIndicatorSize() const {
-  int size = getActualByteForNullsIndicator(attributes.size());
+  int size = getSizeForNullIndicator(attributes.size());
   return (size);
 }
 
@@ -179,10 +183,9 @@ RC Project::getNextTuple(void* data) {
   input->getAttributes(attrs);
   RawRecord dataRecord(unprojectedData, attrs);
 
-  //	getActualByteForNullsIndicator((int)(this->attributeNames.size()));
+  //	getSizeForNullIndicator((int)(this->attributeNames.size()));
   //	int niaSize = ceil(this->attributeNames.size()/8.0);
-  int niaSize =
-      getActualByteForNullsIndicator((int)(this->attributeNames.size()));
+  int niaSize = getSizeForNullIndicator((int)(this->attributeNames.size()));
   int offset = niaSize;
   unsigned char* nullIndicator = new unsigned char[niaSize]();
   for (size_t i = 0; i < attributeNames.size(); i++) {
@@ -346,7 +349,7 @@ RC BNLJoin::getNextTuple(void* data) {
   if (cEval->evaluateFor(joinedRecord)) {
     // if the join satisfies the condition then copy the joined record
     // to data buffer and return status success
-    memcpy(data, joinedRecord.getBuffer, joinedRecord.getRecordSize());
+    memcpy(data, joinedRecord.getBuffer(), joinedRecord.getRecordSize());
   }
   delete[] joinedRecBuffer;
   joinedRecBuffer = nullptr;
@@ -367,7 +370,7 @@ void BNLJoin::joinRecords(const RawRecord& leftRec, const RawRecord& rightRec,
   int rightPayloadSize = rightRec.getRecordSize() - rightNIASize;
   unsigned char* rightNIA = rightRec.getNullIndicatorArray();
 
-  int joinedNIASize = getActualByteForNullsIndicator((int)(joinedAttrs.size()));
+  int joinedNIASize = getSizeForNullIndicator((int)(joinedAttrs.size()));
   unsigned char* joinedNIA = new unsigned char[joinedNIASize]();
 
   for (size_t i = 0; i < joinedAttrs.size(); ++i) {
