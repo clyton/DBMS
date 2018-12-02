@@ -247,12 +247,32 @@ class BNLJoin : public Iterator {
                const Condition &condition,   // Join condition
                const unsigned numPages       // # of pages that can be loaded into memory,
 			                                 //   i.e., memory block size (decided by the optimizer)
-        ){};
-        ~BNLJoin(){};
+        );
+        ~BNLJoin();
 
-        RC getNextTuple(void *data){return QE_EOF;};
+        RC getNextTuple(void *data);
         // For attribute in vector<Attribute>, name it as rel.attr
-        void getAttributes(vector<Attribute> &attrs) const{};
+        void getAttributes(vector<Attribute> &attrs) const;
+        void joinRecords(const RawRecord& leftRec, const RawRecord& rightRec,
+        		char* joinedRecBuff);
+    private:
+        Iterator* leftIn;
+        TableScan* rightIn;
+        Condition condition;
+        int leftTableBufferOffset = -1;
+        char* leftTableBuffer;
+        char* rightTupleBuffer;
+        char* leftTuplePointer = nullptr;
+        unsigned numPages;
+        int sizeOfLeftBuffer = 0;
+        RC loadNextBlockInMemory();
+        void resetLeftOffset();
+        RC setState();
+        bool getNextLeftRecord(char const * leftTupleBuf);
+        vector<Attribute> leftInAttributes;
+        vector<Attribute> rightInAttributes;
+        vector<Attribute> joinedAttributes;
+        ConditionEvaluator *cEval;
 };
 
 
@@ -319,8 +339,11 @@ public:
 	Value& getAttributeValue(Attribute& attr);
     Value& getAttributeValue(int attrIndex);
     bool isFieldNull(int index);
-    unsigned char* getNullIndicatorArray();
-    int getNullIndicatorSize();
+    unsigned char* getNullIndicatorArray() const;
+    int getNullIndicatorSize() const;
+    size_t getRecordSize() const;
+    char* getBuffer() const;
+    const vector<Attribute>& getAttributes() const;
 private:
 	vector<Value> attributeValue;
 	char* rawRecord;
