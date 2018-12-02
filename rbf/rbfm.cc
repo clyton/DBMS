@@ -1207,13 +1207,13 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
   char *pageData = (char *)malloc(PAGE_SIZE);
   fileHandle->readPage(tempRID.pageNum, pageData);
 
-  PageRecordInfo pri;
-  getPageRecordInfo(pri, pageData);
-  if (nextRID.slotNum >= pri.numberOfSlots) {
-    delete[] pageData;
-    pageData = nullptr;
-    return RBFM_EOF;
-  }
+  //  PageRecordInfo pri;
+  //  getPageRecordInfo(pri, pageData);
+  //  if (nextRID.slotNum >= pri.numberOfSlots) {
+  //    delete[] pageData;
+  //    pageData = nullptr;
+  //    return RBFM_EOF;
+  //  }
 
   void *recordData = (char *)malloc(PAGE_SIZE);
   Record *record = NULL;
