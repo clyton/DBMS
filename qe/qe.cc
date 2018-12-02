@@ -71,17 +71,17 @@ void RawRecord::setUpAttributeValue() {
 
     switch (value.type) {
       case TypeInt:
-        memcpy(&value.data, rawRecord + offset, sizeof(int));
+        memcpy(value.data, rawRecord + offset, sizeof(int));
         offset += sizeof(int);
         break;
       case TypeReal:
-        memcpy(&value.data, rawRecord + offset, sizeof(int));
+        memcpy(value.data, rawRecord + offset, sizeof(int));
         offset += sizeof(int);
         break;
       case TypeVarChar:
         int length;
         memcpy(&length, rawRecord + offset, sizeof(int));
-        memcpy(&value.data, rawRecord + offset, sizeof(length) + length);
+        memcpy(value.data, rawRecord + offset, sizeof(length) + length);
         offset += sizeof(length) + length;
         break;
     }
@@ -142,7 +142,7 @@ bool RawRecord::isFieldNull(int index) {
 unsigned char* RawRecord::getNullIndicatorArray() const {
   int size = getNullIndicatorSize();
   unsigned char* nullIndicatorArray = new unsigned char[size]();
-  memcpy(&nullIndicatorArray, rawRecord, size);
+  memcpy(nullIndicatorArray, rawRecord, size);
   return (nullIndicatorArray);
 }
 
