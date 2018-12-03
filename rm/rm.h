@@ -5,18 +5,17 @@
 #include <string>
 #include <vector>
 
-#include "../rbf/rbfm.h"
 #include "../ix/ix.h"
+#include "../rbf/rbfm.h"
 
 using namespace std;
 
-#define RM_EOF (-1) // end of a scan operator
+#define RM_EOF (-1)  // end of a scan operator
 
 class RelationManager;
 // RM_ScanIterator is an iteratr to go through tuples
-class RM_ScanIterator
-{
-public:
+class RM_ScanIterator {
+ public:
   RM_ScanIterator();
   ~RM_ScanIterator();
 
@@ -38,23 +37,20 @@ public:
 // RM_IndexScanIterator is an iterator to go through index entries
 class RM_IndexScanIterator {
  public:
-  RM_IndexScanIterator();  	// Constructor
-  ~RM_IndexScanIterator(); 	// Destructor
+  RM_IndexScanIterator();   // Constructor
+  ~RM_IndexScanIterator();  // Destructor
 
   IXFileHandle ixFileHandle;
   IX_ScanIterator ixScanIterator;
 
   // "key" follows the same format as in IndexManager::insertEntry()
-  RC getNextEntry(RID &rid, void *key);  	// Get next matching entry
-  RC close();             			// Terminate index scan
+  RC getNextEntry(RID &rid, void *key);  // Get next matching entry
+  RC close();                            // Terminate index scan
 };
 
-
-
 // Relation Manager
-class RelationManager
-{
-public:
+class RelationManager {
+ public:
   static RelationManager *instance();
 
   RC createCatalog();
@@ -79,16 +75,17 @@ public:
   // The format is the same as printRecord().
   RC printTuple(const vector<Attribute> &attrs, const void *data);
 
-  RC readAttribute(const string &tableName, const RID &rid, const string &attributeName, void *data);
+  RC readAttribute(const string &tableName, const RID &rid,
+                   const string &attributeName, void *data);
 
-  // Scan returns an iterator to allow the caller to go through the results one by one.
-  // Do not store entire results in the scan iterator.
-  RC scan(const string &tableName,
-          const string &conditionAttribute,
-          const CompOp compOp,                  // comparison type such as "<" and "="
-          const void *value,                    // used in the comparison
-          const vector<string> &attributeNames, // a list of projected attributes
-          RM_ScanIterator &rm_ScanIterator);
+  // Scan returns an iterator to allow the caller to go through the results one
+  // by one. Do not store entire results in the scan iterator.
+  RC scan(
+      const string &tableName, const string &conditionAttribute,
+      const CompOp compOp,  // comparison type such as "<" and "="
+      const void *value,    // used in the comparison
+      const vector<string> &attributeNames,  // a list of projected attributes
+      RM_ScanIterator &rm_ScanIterator);
 
   void persistCurrentTableId();
 
@@ -96,29 +93,27 @@ public:
 
   RC destroyIndex(const string &tableName, const string &attributeName);
 
-  // indexScan returns an iterator to allow the caller to go through qualified entries in index
-  RC indexScan(const string &tableName,
-                        const string &attributeName,
-                        const void *lowKey,
-                        const void *highKey,
-                        bool lowKeyInclusive,
-                        bool highKeyInclusive,
-                        RM_IndexScanIterator &rm_IndexScanIterator);
-
+  // indexScan returns an iterator to allow the caller to go through qualified
+  // entries in index
+  RC indexScan(const string &tableName, const string &attributeName,
+               const void *lowKey, const void *highKey, bool lowKeyInclusive,
+               bool highKeyInclusive,
+               RM_IndexScanIterator &rm_IndexScanIterator);
 
   // Extra credit work (10 points)
-public:
+ public:
   RC addAttribute(const string &tableName, const Attribute &attr);
 
   RC dropAttribute(const string &tableName, const string &attributeName);
 
-protected:
+ protected:
   RelationManager();
   ~RelationManager();
 
-private:
+ private:
   static RelationManager *_rm;
-private:
+
+ private:
   RecordBasedFileManager *rbfm;
   const string columnCatalog = "Columns.tbl";
   const string tableCatalog = "Tables.tbl";
@@ -130,16 +125,21 @@ private:
   vector<Attribute> tblRecordDescriptor;
 
   // Describe schema for Columns catalog table
-  // Columns(table-id:int, column-name:varchar(50), column-type:int, column-length:int, column-position:int)
+  // Columns(table-id:int, column-name:varchar(50), column-type:int,
+  // column-length:int, column-position:int)
   vector<Attribute> colRecordDescriptor;
 
   vector<Attribute> currentTableIDRecordDescriptor;
 
   vector<Attribute> indexTableRecordDescriptor;
 
-  RC getRecordDescriptorForTable(const string tableName, vector<Attribute> &recordDescriptor);
+  RC getRecordDescriptorForTable(const string tableName,
+                                 vector<Attribute> &recordDescriptor);
   int getTableIdForTable(string tableName, RID &rid);
   void readCurrentTableID();
 };
+
+void getIndexAttribute(void *indexRow, void *attrName,
+                       vector<Attribute> &recDe);
 
 #endif

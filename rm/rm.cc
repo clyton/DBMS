@@ -422,23 +422,20 @@ RC RelationManager::getAttributes(const string &tableName,
   return status;
 }
 
+/**
+ * modifies key to store attrValue in form | length of string | string |
+ * @param data
+ * @param key
+ * @param recordDescriptor
+ * @param attributeName
+ * @return
+ */
 RC getValueFromRawData(const void *data, void *key,
                        const vector<Attribute> &recordDescriptor,
                        const string &attributeName) {
   Record record = Record(recordDescriptor, (char *)data);
   memset(key, 0, PAGE_SIZE);
   record.getAttributeValue(attributeName, (char *)key);
-  //  switch (record.getAttributeType(attributeName)) {
-  //    case TypeVarChar:
-  //      int length;
-  //      memcpy(&length, key, sizeof(int));
-  //      memmove(key, (char *)key + sizeof(length), length);
-  //      // now to make it compatible for string comparison append '\0'
-  //      memset((char *)key + length, 0, PAGE_SIZE - length);
-  //      break;
-  //    default:
-  //      break;
-  //  }
   return 0;
 }
 
@@ -477,8 +474,10 @@ RC RelationManager::insertTuple(const string &tableName, const void *data,
   RID indexRID;
   while (rm_ScanIterator.getNextTuple(indexRID, indexRow) != -1) {
     // Get attribute from indexRow
-    getValueFromRawData(indexRow, attributeName, indexTableRecordDescriptor,
-                        "index-name");
+    //    getValueFromRawData(indexRow, attributeName,
+    //    indexTableRecordDescriptor,
+    //                        "index-name");
+    getIndexAttribute(indexRow, attributeName, indexTableRecordDescriptor);
     // TODO: attributeName contains length information. Direct comparison below
     // will fail
     for (int i = 0; i < recordDescriptor.size(); i++) {
@@ -547,8 +546,10 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid) {
     }
 
     // Get attribute from indexRow
-    getValueFromRawData(indexRow, attributeName, indexTableRecordDescriptor,
-                        "index-name");
+    //    getValueFromRawData(indexRow, attributeName,
+    //    indexTableRecordDescriptor,
+    //                        "index-name");
+    getIndexAttribute(indexRow, attributeName, indexTableRecordDescriptor);
 
     for (int i = 0; i < recordDescriptor.size(); i++) {
       if ((recordDescriptor[i].name).compare((char *)attributeName) == 0) {
@@ -621,8 +622,10 @@ RC RelationManager::updateTuple(const string &tableName, const void *data,
     }
 
     // Get attribute from indexRow
-    getValueFromRawData(indexRow, attributeName, indexTableRecordDescriptor,
-                        "index-name");
+    //    getValueFromRawData(indexRow, attributeName,
+    //    indexTableRecordDescriptor,
+    //                        "index-name");
+    getIndexAttribute(indexRow, attributeName, indexTableRecordDescriptor);
     for (int i = 0; i < recordDescriptor.size(); i++) {
       if ((recordDescriptor[i].name).compare((char *)attributeName) == 0) {
         attribute = recordDescriptor[i];
@@ -1052,4 +1055,16 @@ RC RM_IndexScanIterator::close() {
     return -1;
   }
   return 0;
+}
+
+void getIndexAttribute(void *indexRowBuffer, void *attrName,
+                       vector<Attribute> &indexRecDesc) {
+  Record record = Record(indexRecDesc, (char *)indexRowBuffer);
+  memset(attrName, 0, PAGE_SIZE);
+  record.getAttributeValue("index-name", (char *)attrName);
+  int length;
+  memcpy(&length, attrName, sizeof(int));
+  memmove(attrName, (char *)attrName + sizeof(length), length);
+  // now to make it compatible for string comparison append '\0'
+  memset((char *)attrName + length, 0, PAGE_SIZE - length);
 }
