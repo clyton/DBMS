@@ -86,6 +86,17 @@ RC RelationManager::createCatalog() {
   rbfm->insertRecord(fileHandle, tblRecordDescriptor, tableCatalogRecord2,
                      rid2);
 
+  memset(tableCatalogRecord2, 0, PAGE_SIZE);
+  tblCtlgPrp
+      .setField(SYSTEM_TABLE)  // table-type
+      .setField(3)             // table-id
+      .setField("Index")       // table-name
+      .setField(indexCatalog)  // file-name
+      .prepareRecord(tableCatalogRecord2);
+
+  rbfm->insertRecord(fileHandle, tblRecordDescriptor, tableCatalogRecord2,
+                     rid2);
+
   rbfm->closeFile(fileHandle);
   free(tableCatalogRecord2);
 
@@ -201,10 +212,51 @@ RC RelationManager::createCatalog() {
       .prepareRecord(columnCatalogRecord);
   rbfm->insertRecord(fileHandleForCols, colRecordDescriptor,
                      columnCatalogRecord, rid);
+
+  //  {"table-id", TypeInt, 4};
+  memset(columnCatalogRecord, 0, PAGE_SIZE);
+  colCtlgPrp
+      .setField(3)           // table-id
+      .setField("table-id")  // column-name
+      .setField(TypeInt)     // column-type
+      .setField(4)           // column-length
+      .setField(1)           // column-position
+      .prepareRecord(columnCatalogRecord);
+  rbfm->insertRecord(fileHandleForCols, colRecordDescriptor,
+                     columnCatalogRecord, rid);
+  //  {"index-name", TypeVarChar, 50};
+  memset(columnCatalogRecord, 0, PAGE_SIZE);
+  colCtlgPrp
+      .setField(3)             // table-id
+      .setField("index-name")  // column-name
+      .setField(TypeVarChar)   // column-type
+      .setField(50)            // column-length
+      .setField(2)             // column-position
+      .prepareRecord(columnCatalogRecord);
+  rbfm->insertRecord(fileHandleForCols, colRecordDescriptor,
+                     columnCatalogRecord, rid);
+  //  {"index-file-name", TypeVarChar, 50});
+  memset(columnCatalogRecord, 0, PAGE_SIZE);
+  colCtlgPrp
+      .setField(3)                  // table-id
+      .setField("index-file-name")  // column-name
+      .setField(TypeVarChar)        // column-type
+      .setField(50)                 // column-length
+      .setField(3)                  // column-position
+      .prepareRecord(columnCatalogRecord);
+  rbfm->insertRecord(fileHandleForCols, colRecordDescriptor,
+                     columnCatalogRecord, rid);
+
   rbfm->closeFile(fileHandleForCols);
   free(columnCatalogRecord);
 
-  current_table_id = 3;
+  // create empty file for index catalog
+  FileHandle fileHandleForIndexCat;
+  rbfm->createFile(indexCatalog);
+  rbfm->openFile(indexCatalog, fileHandleForIndexCat);
+  rbfm->closeFile(fileHandleForIndexCat);
+
+  current_table_id = 4;
   rbfm->createFile(currentTableIDFile);
   FileHandle tableIDFileHandle;
   rbfm->openFile(currentTableIDFile, tableIDFileHandle);
@@ -376,17 +428,17 @@ RC getValueFromRawData(const void *data, void *key,
   Record record = Record(recordDescriptor, (char *)data);
   memset(key, 0, PAGE_SIZE);
   record.getAttributeValue(attributeName, (char *)key);
-  switch (record.getAttributeType(attributeName)) {
-    case TypeVarChar:
-      int length;
-      memcpy(&length, key, sizeof(int));
-      memmove(key, (char *)key + sizeof(length), length);
-      // now to make it compatible for string comparison append '\0'
-      memset((char *)key + length, 0, PAGE_SIZE - length);
-      break;
-    default:
-      break;
-  }
+  //  switch (record.getAttributeType(attributeName)) {
+  //    case TypeVarChar:
+  //      int length;
+  //      memcpy(&length, key, sizeof(int));
+  //      memmove(key, (char *)key + sizeof(length), length);
+  //      // now to make it compatible for string comparison append '\0'
+  //      memset((char *)key + length, 0, PAGE_SIZE - length);
+  //      break;
+  //    default:
+  //      break;
+  //  }
   return 0;
 }
 
@@ -413,8 +465,7 @@ RC RelationManager::insertTuple(const string &tableName, const void *data,
   attributeNames.push_back("index-name");
   attributeNames.push_back("index-file-name");
   RM_ScanIterator rm_ScanIterator;
-  scan(indexCatalog, "table-id", EQ_OP, &tableId, attributeNames,
-       rm_ScanIterator);
+  scan("Index", "table-id", EQ_OP, &tableId, attributeNames, rm_ScanIterator);
 
   // create index entry for each row returned by Index.tbl
   void *indexRow = malloc(PAGE_SIZE);
@@ -479,8 +530,7 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid) {
   attributeNames.push_back("index-name");
   attributeNames.push_back("index-file-name");
   RM_ScanIterator rm_ScanIterator;
-  scan(indexCatalog, "table-id", EQ_OP, &tableId, attributeNames,
-       rm_ScanIterator);
+  scan("Index", "table-id", EQ_OP, &tableId, attributeNames, rm_ScanIterator);
 
   // for each row of scan result, get the attribute
   void *indexRow = malloc(PAGE_SIZE);
@@ -499,6 +549,7 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid) {
     // Get attribute from indexRow
     getValueFromRawData(indexRow, attributeName, indexTableRecordDescriptor,
                         "index-name");
+
     for (int i = 0; i < recordDescriptor.size(); i++) {
       if ((recordDescriptor[i].name).compare((char *)attributeName) == 0) {
         attribute = recordDescriptor[i];
@@ -552,8 +603,7 @@ RC RelationManager::updateTuple(const string &tableName, const void *data,
   attributeNames.push_back("index-name");
   attributeNames.push_back("index-file-name");
   RM_ScanIterator rm_ScanIterator;
-  scan(indexCatalog, "table-id", EQ_OP, &tableId, attributeNames,
-       rm_ScanIterator);
+  scan("Index", "table-id", EQ_OP, &tableId, attributeNames, rm_ScanIterator);
 
   // for each row of scan result, get the attribute
   void *indexRow = malloc(PAGE_SIZE);
@@ -741,7 +791,6 @@ RC RelationManager::createIndex(const string &tableName,
   free(key);
 
   // insert in the index catalog
-  rbfm->createFile(indexCatalog);
   FileHandle indexFileHandle;
   rbfm->openFile(indexCatalog, indexFileHandle);
   RID indexRecId;
