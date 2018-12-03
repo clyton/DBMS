@@ -67,7 +67,7 @@ void RawRecord::setUpAttributeValue() {
       continue;
     }
     // if the value is not null
-    value.data = new char[attributes[i].length]();
+    value.data = new char[PAGE_SIZE]();
 
     switch (value.type) {
       case TypeInt:
@@ -285,7 +285,7 @@ bool BNLJoin::getNextLeftRecord(const char*& leftTupleBuf) {
 RC BNLJoin::resetLeftOffset() {
   RC isEOF = 0;
   if (sizeOfLeftBuffer == 0) {
-    RC isEOF = loadNextBlockInMemory();
+    isEOF = loadNextBlockInMemory();
   }
   leftTableBufferOffset = 0;
   return (isEOF);
@@ -349,12 +349,12 @@ RC BNLJoin::getNextTuple(void* data) {
     RawRecord leftRecord(leftTuplePointer, leftInAttributes);
     RawRecord rightRecord(rightTupleBuffer, rightInAttributes);
 
-    // get record sizes for left and right records
-    size_t sizeOfLeftRecord = leftRecord.getRecordSize();
-    size_t sizeOfRightRecord = rightRecord.getRecordSize();
+    //    // get record sizes for left and right records
+    //    size_t sizeOfLeftRecord = leftRecord.getRecordSize();
+    //    size_t sizeOfRightRecord = rightRecord.getRecordSize();
 
     // prepare a joined record buffer by copying left and right records
-    this->joinRecords(leftRecord, rightRecord, joinedRecBuffer);
+    joinRecords(leftRecord, rightRecord, joinedRecBuffer, joinedAttributes);
     RawRecord joinedRecord(joinedRecBuffer, joinedAttributes);
 
     // Evaluate the condition on this join
@@ -371,10 +371,10 @@ RC BNLJoin::getNextTuple(void* data) {
   return (success);
 }
 
-void BNLJoin::joinRecords(const RawRecord& leftRec, const RawRecord& rightRec,
-                          char* joinedRecBuf) {
-  vector<Attribute> joinedAttrs;
-  this->getAttributes(joinedAttrs);
+void joinRecords(const RawRecord& leftRec, const RawRecord& rightRec,
+                 char* joinedRecBuf, vector<Attribute> joinedAttrs) {
+  //  vector<Attribute> joinedAttrs;
+  //  this->getAttributes(joinedAttrs);
 
   int leftNIASize = leftRec.getNullIndicatorSize();
   int leftPayloadSize = leftRec.getRecordSize() - leftNIASize;
@@ -435,3 +435,187 @@ RC BNLJoin::loadNextBlockInMemory() {
     return (success);
   }
 }
+
+void INLJoin::getAttributes(vector<Attribute>& attrs) const {
+  vector<Attribute> lAttr, rAttr;
+  leftIn->getAttributes(lAttr);
+  rightIn->getAttributes(rAttr);
+  attrs.insert(attrs.begin(), lAttr.begin(), lAttr.end());
+  attrs.insert(attrs.end(), rAttr.begin(), rAttr.end());
+}
+
+RC INLJoin::getNextTuple(void* data) {
+  RC isEOF = setState();
+
+  if (isEOF == QE_EOF) {
+    return QE_EOF;
+  }
+
+  RawRecord leftRec(leftTuple, lAttr);
+  RawRecord rightRec(rightTuple, rAttr);
+  char* joinedRecBuf = new char[PAGE_SIZE * 2]();
+  joinRecords(leftRec, rightRec, joinedRecBuf, joinedAttributes);
+
+  RawRecord joinedRec(joinedRecBuf, joinedAttributes);
+
+  memcpy(data, joinedRec.getBuffer(), joinedRec.getRecordSize());
+
+  delete[] joinedRecBuf;
+  joinedRecBuf = nullptr;
+
+  return success;
+}
+
+RC INLJoin::setState() {
+  /**
+   *  if rightTuple == nullptr // right scan done
+   *    read left
+   *    read right
+   *  if leftTuple == nullptr  // left scan done
+   *    return EOF
+   *  if rightTuple != nullptr // right scan in progress for a left record
+   *    read right
+   *
+   *
+   */
+  if (isLeftTableEmpty) return QE_EOF;
+
+  if (leftScanDone) {
+    return QE_EOF;
+  }
+
+  rightScanDone = (rightIn->getNextTuple(rightTuple) == QE_EOF);
+  if (rightScanDone) {  // there are records in left table
+    leftScanDone = (leftIn->getNextTuple(leftTuple) == QE_EOF);
+    if (leftScanDone) return QE_EOF;
+
+    resetRightIterator();  // close and open a new iterator
+    rightScanDone = (rightIn->getNextTuple(rightTuple) == QE_EOF);
+    if (rightScanDone) {
+      return QE_EOF;
+    }
+  }
+
+  // right scan is not done and left scan is also not done
+  return success;
+}
+
+RC INLJoin::resetRightIterator() {
+  char *lowKey, *highKey;
+  lowKey = new char[PAGE_SIZE]();
+  highKey = new char[PAGE_SIZE]();
+  bool lowKeyInclusive, highKeyInclusive;
+
+  RawRecord leftRec(leftTuple, lAttr);
+  //  RawRecord rightRec(rightTuple, rAttr);
+
+  Value leftValue = leftRec.getAttributeValue(condition.lhsAttr);
+  //  Value leftValue = condition.bRhsIsAttr
+  //                        ? rightRec.getAttributeValue(condition.rhsAttr)
+  //                        : condition.rhsValue;
+
+  // you will always have the left tuple with you
+  // use that to query the index of the right table
+  // so the below conditions need to be applied on lhsAttr and should
+  // be seen from the right table's point of view
+
+  switch (condition.op) {
+    case EQ_OP:
+      memcpy(lowKey, leftValue.data, PAGE_SIZE);
+      memcpy(highKey, leftValue.data, PAGE_SIZE);
+      lowKeyInclusive = true;
+      highKeyInclusive = true;
+      break;
+    case NO_OP:
+      delete[] lowKey;
+      delete[] highKey;
+      lowKey = nullptr;
+      highKey = nullptr;
+      lowKeyInclusive = true;
+      highKeyInclusive = true;
+      break;
+    case LT_OP:  // lhsAttr < rhsAttr; think like nullptr > rhsAttr > lhsAttr
+      delete[] highKey;
+      highKey = nullptr;
+      memcpy(lowKey, leftValue.data, PAGE_SIZE);
+      lowKeyInclusive = false;
+      highKeyInclusive = false;
+      break;
+    case LE_OP:  // lshAttr <= rhsAttr; think like nullptr > rhsAttr >= lhsAttr
+      delete[] highKey;
+      highKey = nullptr;
+      memcpy(lowKey, leftValue.data, PAGE_SIZE);
+      lowKeyInclusive = true;
+      highKeyInclusive = false;
+      break;
+    case GT_OP:  // lhsAttr > rhsAttr; think like nullptr < rhsAttr < lhsAttr
+      memcpy(highKey, leftValue.data, PAGE_SIZE);
+      delete[] lowKey;
+      lowKey = nullptr;
+      lowKeyInclusive = false;
+      highKeyInclusive = false;
+      break;
+    case GE_OP:  // lhsAttr >= rhsAttr; think like nullptr < rhsAttr <= lhsAttr
+      memcpy(highKey, leftValue.data, PAGE_SIZE);
+      delete[] lowKey;
+      lowKey = nullptr;
+      lowKeyInclusive = false;
+      highKeyInclusive = true;
+      break;  // >=
+    default:
+      cerr << "Invalid use of operator for index scanning" << condition.op
+           << endl;
+      exit(1);
+      break;
+  }
+
+  rightIn->setIterator(lowKey, highKey, lowKeyInclusive, highKeyInclusive);
+
+  //  void setIterator(void *lowKey, void *highKey, bool lowKeyInclusive,
+  //                   bool highKeyInclusive) {
+  return success;
+}
+
+INLJoin::INLJoin(Iterator* leftIn, IndexScan* rightIn,
+                 const Condition& condition) {
+  // read left iterator and attributes
+  this->leftIn = leftIn;
+  this->leftIn->getAttributes(this->lAttr);
+
+  // read right iterator and attributes
+  this->rightIn = rightIn;
+  this->rightIn->getAttributes(this->rAttr);
+
+  // join the attributes after reading both the attributes
+  // leftIn and rightIn need to be initialized before call to this
+  this->getAttributes(this->joinedAttributes);
+  this->condition = condition;
+
+  // allocate memory for right and left tuple
+  this->rightTuple = new char[PAGE_SIZE]();
+  this->leftTuple = new char[PAGE_SIZE]();
+
+  // lastly initialize condition evaluator with joinedAttributes
+  this->cEval = new ConditionEvaluator(this->condition, joinedAttributes);
+
+  // prepare initial condition for getNextTuple
+  isLeftTableEmpty = (leftIn->getNextTuple(leftTuple) == QE_EOF);
+  if (!isLeftTableEmpty) resetRightIterator();
+}
+
+INLJoin::~INLJoin() {
+  if (cEval) {
+    delete cEval;
+    cEval = nullptr;
+  }
+  if (leftTuple) {
+    delete[] leftTuple;
+    leftTuple = nullptr;
+  }
+  if (rightTuple) {
+    delete[] rightTuple;
+    rightTuple = nullptr;
+  }
+}
+
+ConditionEvaluator::~ConditionEvaluator() {}

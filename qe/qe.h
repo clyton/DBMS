@@ -41,6 +41,7 @@ class ConditionEvaluator {
   ConditionEvaluator(const Condition &condition, vector<Attribute> &attrs);
   bool evaluateFor(Record &record);
   bool evaluateFor(RawRecord &rawRecord);
+  ~ConditionEvaluator();
 
  private:
   Condition condition;
@@ -231,8 +232,6 @@ class BNLJoin : public Iterator {
   RC getNextTuple(void *data);
   // For attribute in vector<Attribute>, name it as rel.attr
   void getAttributes(vector<Attribute> &attrs) const;
-  void joinRecords(const RawRecord &leftRec, const RawRecord &rightRec,
-                   char *joinedRecBuff);
 
  private:
   RC success = 0;
@@ -262,12 +261,30 @@ class INLJoin : public Iterator {
   INLJoin(Iterator *leftIn,           // Iterator of input R
           IndexScan *rightIn,         // IndexScan Iterator of input S
           const Condition &condition  // Join condition
-  ){};
-  ~INLJoin(){};
+  );
+  ~INLJoin();
 
-  RC getNextTuple(void *data) { return QE_EOF; };
+  RC getNextTuple(void *data);
   // For attribute in vector<Attribute>, name it as rel.attr
-  void getAttributes(vector<Attribute> &attrs) const {};
+  void getAttributes(vector<Attribute> &attrs) const;
+
+ private:
+  RC success = 0;
+  RC failure = -1;
+  Iterator *leftIn;
+  IndexScan *rightIn;
+  Condition condition;
+  ConditionEvaluator *cEval;
+  char *leftTuple;
+  bool leftScanDone = false;
+  char *rightTuple;
+  bool rightScanDone = false;
+  bool isLeftTableEmpty = false;
+  vector<Attribute> joinedAttributes;
+  vector<Attribute> lAttr;
+  vector<Attribute> rAttr;
+  RC setState();
+  RC resetRightIterator();  // close and open a new iterator
 };
 
 // Optional for everyone. 10 extra-credit points
@@ -335,4 +352,7 @@ class RawRecord {
   vector<Attribute> attributes;
   void setUpAttributeValue();
 };
+
+void joinRecords(const RawRecord &leftRec, const RawRecord &rightRec,
+                 char *joinedRecBuf, vector<Attribute> joinedAttrs);
 #endif
