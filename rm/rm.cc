@@ -85,6 +85,7 @@ RC RelationManager::createCatalog() {
   RID rid2;
   rbfm->insertRecord(fileHandle, tblRecordDescriptor, tableCatalogRecord2,
                      rid2);
+
   rbfm->closeFile(fileHandle);
   free(tableCatalogRecord2);
 
@@ -323,9 +324,7 @@ RC RelationManager::deleteTable(const string &tableName) {
   // delete tables from table catalog
   FileHandle fileHandle;
 
-  if (rbfm->openFile(tableCatalog, fileHandle) !=
-      0)  // TODO: Confirm is .tbl is required
-    return -1;
+  if (rbfm->openFile(tableCatalog, fileHandle) != 0) return -1;
 
   if (rbfm->deleteRecord(fileHandle, tblRecordDescriptor, tableIdRID) != 0)
     return -1;
@@ -339,9 +338,7 @@ RC RelationManager::deleteTable(const string &tableName) {
 
   // delete records from column catalog
   FileHandle colFileHandle;
-  if (rbfm->openFile(columnCatalog, colFileHandle) !=
-      0)  // TODO: Confirm is .tbl is required
-    return -1;
+  if (rbfm->openFile(columnCatalog, colFileHandle) != 0) return -1;
 
   rbfm->scan(colFileHandle, colRecordDescriptor, "table-id", EQ_OP, &tableId,
              attrNames, rbfmsi);
@@ -377,7 +374,19 @@ RC getValueFromRawData(const void *data, void *key,
                        const vector<Attribute> &recordDescriptor,
                        const string &attributeName) {
   Record record = Record(recordDescriptor, (char *)data);
+  memset(key, 0, PAGE_SIZE);
   record.getAttributeValue(attributeName, (char *)key);
+  switch (record.getAttributeType(attributeName)) {
+    case TypeVarChar:
+      int length;
+      memcpy(&length, key, sizeof(int));
+      memmove(key, (char *)key + sizeof(length), length);
+      // now to make it compatible for string comparison append '\0'
+      memset((char *)key + length, 0, PAGE_SIZE - length);
+      break;
+    default:
+      break;
+  }
   return 0;
 }
 
@@ -422,7 +431,7 @@ RC RelationManager::insertTuple(const string &tableName, const void *data,
     // TODO: attributeName contains length information. Direct comparison below
     // will fail
     for (int i = 0; i < recordDescriptor.size(); i++) {
-      if ((recordDescriptor[i].name).compare((char *)attributeName + 4) == 0) {
+      if ((recordDescriptor[i].name).compare((char *)attributeName) == 0) {
         attribute = recordDescriptor[i];
         break;
       }
@@ -700,7 +709,7 @@ RC RelationManager::createIndex(const string &tableName,
   // create index file
   int tableId;
   RID rid;
-  getTableIdForTable(tableName, rid);
+  tableId = getTableIdForTable(tableName, rid);
   IndexManager *ixManager = IndexManager::instance();
   string fileName = tableName + "_" + attributeName + "_" + "idx";
   ixManager->createFile(fileName);
