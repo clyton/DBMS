@@ -1571,3 +1571,114 @@ Record::~Record() {
   free(this->fieldPointers);
   free(this->nullIndicatorArray);
 }
+
+RawRecord::RawRecord(const char *rawRecord, const vector<Attribute> &attrs) {
+  this->rawRecord = rawRecord;
+  this->attributes = attrs;
+  setUpAttributeValue();
+}
+// ... the rest of your implementations go here
+
+const vector<Attribute> &RawRecord::getAttributes() const {
+  return (this->attributes);
+}
+
+const char *RawRecord::getBuffer() const { return (rawRecord); }
+
+void RawRecord::setUpAttributeValue() {
+  int size = getNullIndicatorSize();
+
+  int offset = size;
+  for (size_t i = 0; i < attributes.size(); ++i) {
+    Value value;
+    value.type = attributes[i].type;
+    if (isFieldNull(i)) {
+      value.data = nullptr;
+      attributeValue.push_back(value);
+      continue;
+    }
+    // if the value is not null
+    value.data = new char[PAGE_SIZE]();
+
+    switch (value.type) {
+      case TypeInt:
+        memcpy(value.data, rawRecord + offset, sizeof(int));
+        offset += sizeof(int);
+        break;
+      case TypeReal:
+        memcpy(value.data, rawRecord + offset, sizeof(int));
+        offset += sizeof(int);
+        break;
+      case TypeVarChar:
+        int length;
+        memcpy(&length, rawRecord + offset, sizeof(int));
+        memcpy(value.data, rawRecord + offset, sizeof(length) + length);
+        offset += sizeof(length) + length;
+        break;
+    }
+
+    attributeValue.push_back(value);
+  }
+}
+
+Value &RawRecord::getAttributeValue(int index) {
+  return (attributeValue[index]);
+}
+
+Value &RawRecord::getAttributeValue(Attribute &attribute) {
+  for (size_t i = 0; i < attributes.size(); ++i) {
+    if (attributes[i].name.compare(attribute.name) == 0)
+      return (getAttributeValue(i));
+  }
+  cerr << "Wrong attribute name";
+  exit(1);
+}
+
+Value &RawRecord::getAttributeValue(const string &attributeName) {
+  for (size_t i = 0; i < attributes.size(); ++i) {
+    if (attributes[i].name.compare(attributeName) == 0)
+      return (getAttributeValue(i));
+  }
+  cerr << "Wrong attribute name";
+  exit(1);
+}
+
+bool RawRecord::isFieldNull(int index) {
+  unsigned char *nullIndicatorArray = getNullIndicatorArray();
+  int byteNumber = index / 8;
+  bool isNull = nullIndicatorArray[byteNumber] & (1 << (7 - index % 8));
+  delete[] nullIndicatorArray;
+  return (isNull);
+}
+
+unsigned char *RawRecord::getNullIndicatorArray() const {
+  int size = getNullIndicatorSize();
+  unsigned char *nullIndicatorArray = new unsigned char[size]();
+  memcpy(nullIndicatorArray, rawRecord, size);
+  return (nullIndicatorArray);
+}
+
+int RawRecord::getNullIndicatorSize() const {
+  int size = getSizeForNullIndicator(attributes.size());
+  return (size);
+}
+
+size_t RawRecord::getRecordSize() const {
+  size_t offset = getNullIndicatorSize();
+  for (size_t i = 0; i < attributes.size(); ++i) {
+    switch (attributes[i].type) {
+      case TypeVarChar:
+        int length;
+        memcpy(&length, this->rawRecord + offset, sizeof(int));
+        offset += sizeof(int) + length;
+        break;
+      default:  // for TypeInt and TypeReal
+        offset += sizeof(int);
+    }
+  }
+  return (offset);
+}
+
+int getSizeForNullIndicator(int fieldCount) {
+  return ceil((double)fieldCount / CHAR_BIT);
+}

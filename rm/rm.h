@@ -80,12 +80,10 @@ class RelationManager {
 
   // Scan returns an iterator to allow the caller to go through the results one
   // by one. Do not store entire results in the scan iterator.
-  RC scan(
-      const string &tableName, const string &conditionAttribute,
-      const CompOp compOp,  // comparison type such as "<" and "="
-      const void *value,    // used in the comparison
-      const vector<string> &attributeNames,  // a list of projected attributes
-      RM_ScanIterator &rm_ScanIterator);
+  RC scan(const string &tableName, const string &conditionAttribute,
+          const CompOp compOp, const void *value,
+          const vector<string> &attributeNames,
+          RM_ScanIterator &rm_ScanIterator);
 
   void persistCurrentTableId();
 

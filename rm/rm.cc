@@ -5,9 +5,7 @@
 #include <cstring>
 #include <iostream>
 
-#include "../ix/ix.h"
 #include "../rbf/pfm.h"
-#include "../rbf/rbfm.h"
 
 RC success = 0;
 RC failure = 1;
@@ -356,6 +354,7 @@ RC RelationManager::createTable(const string &tableName,
     rbfm->insertRecord(colFileHandle, colRecordDescriptor, colCatalogRecord,
                        rid);
   }
+  rbfm->closeFile(colFileHandle);
   free(colCatalogRecord);
 
   current_table_id++;
@@ -433,9 +432,12 @@ RC RelationManager::getAttributes(const string &tableName,
 RC getValueFromRawData(const void *data, void *key,
                        const vector<Attribute> &recordDescriptor,
                        const string &attributeName) {
-  Record record = Record(recordDescriptor, (char *)data);
+  //  Record record = Record(recordDescriptor, (char *)data);
+  RawRecord record =
+      RawRecord(static_cast<const char *>(data), recordDescriptor);
+  Value keyValue = record.getAttributeValue(attributeName);
   memset(key, 0, PAGE_SIZE);
-  record.getAttributeValue(attributeName, (char *)key);
+  memcpy(key, keyValue.data, PAGE_SIZE);
   return 0;
 }
 
@@ -459,10 +461,14 @@ RC RelationManager::insertTuple(const string &tableName, const void *data,
   // scan the Index.tbl to check which attributes of given table have indexes on
   // them
   vector<string> attributeNames;
+  attributeNames.push_back("table-id");
   attributeNames.push_back("index-name");
   attributeNames.push_back("index-file-name");
   RM_ScanIterator rm_ScanIterator;
-  scan("Index", "table-id", EQ_OP, &tableId, attributeNames, rm_ScanIterator);
+  const string indexTableName = "Index";
+  const string tableIdAttribute = "table-id";
+  this->scan(indexTableName, tableIdAttribute, EQ_OP, &tableId, attributeNames,
+             rm_ScanIterator);
 
   // create index entry for each row returned by Index.tbl
   void *indexRow = malloc(PAGE_SIZE);
@@ -477,9 +483,8 @@ RC RelationManager::insertTuple(const string &tableName, const void *data,
     //    getValueFromRawData(indexRow, attributeName,
     //    indexTableRecordDescriptor,
     //                        "index-name");
+    //    printTuple(indexTableRecordDescriptor, indexRow);
     getIndexAttribute(indexRow, attributeName, indexTableRecordDescriptor);
-    // TODO: attributeName contains length information. Direct comparison below
-    // will fail
     for (int i = 0; i < recordDescriptor.size(); i++) {
       if ((recordDescriptor[i].name).compare((char *)attributeName) == 0) {
         attribute = recordDescriptor[i];
@@ -490,7 +495,8 @@ RC RelationManager::insertTuple(const string &tableName, const void *data,
     // Get key from insert raw data
     getValueFromRawData(data, key, recordDescriptor, (char *)attributeName);
 
-    if (ixManager->openFile(fileName, ixFileHandle) != 0) {
+    string indexFileName = tableName + "_" + *(char *)attributeName + "_idx";
+    if (ixManager->openFile(indexFileName, ixFileHandle) != 0) {
       return -1;
     }
 
@@ -526,6 +532,7 @@ RC RelationManager::deleteTuple(const string &tableName, const RID &rid) {
   // scan Index.tbl by tableId to get all attributes having indexes from current
   // table
   vector<string> attributeNames;
+  attributeNames.push_back("table-id");
   attributeNames.push_back("index-name");
   attributeNames.push_back("index-file-name");
   RM_ScanIterator rm_ScanIterator;
@@ -601,6 +608,7 @@ RC RelationManager::updateTuple(const string &tableName, const void *data,
   // scan Index.tbl by tableId to get all attributes having indexes from current
   // table
   vector<string> attributeNames;
+  attributeNames.push_back("table-id");
   attributeNames.push_back("index-name");
   attributeNames.push_back("index-file-name");
   RM_ScanIterator rm_ScanIterator;
@@ -714,13 +722,13 @@ RC RelationManager::scan(const string &tableName,
   rm_ScanIterator.attributeNames = &attributeNames;
   rbfm->openFile(tableName + ".tbl", rm_ScanIterator.fileHandle);
   vector<Attribute> recordDescriptor;
-  getRecordDescriptorForTable(tableName, recordDescriptor);
+  getRecordDescriptorForTable(tableName, rm_ScanIterator.recordDescriptor);
   //  rbfm->scan(fileHandle, recordDescriptor,
   //		  conditionAttribute, compOp, rbfmScanner value, attributeNames,
   //		  rm_ScanIterator.rbfm_ScanIterator);
-  rm_ScanIterator.recordDescriptor = recordDescriptor;
-  rbfm->scan(rm_ScanIterator.fileHandle, recordDescriptor, conditionAttribute,
-             compOp, value, attributeNames, rm_ScanIterator.rbfm_ScanIterator);
+  rbfm->scan(rm_ScanIterator.fileHandle, rm_ScanIterator.recordDescriptor,
+             conditionAttribute, compOp, value, attributeNames,
+             rm_ScanIterator.rbfm_ScanIterator);
   return success;
 }
 
@@ -988,12 +996,12 @@ int RelationManager::getTableIdForTable(std::string tableName, RID &rid) {
 
   const string &conditionAttribute = "table-name";
   CompOp compOp = EQ_OP;
-  char *value = (char *)malloc(4 + tableName.length());
-  memset(value, 0, 4 + tableName.length());
+  char *value = (char *)malloc(PAGE_SIZE);
+  memset(value, 0, PAGE_SIZE);
 
   int valueLength = tableName.length();
-  memcpy(value, &valueLength, 4);
-  memcpy(value + 4, tableName.c_str(), tableName.length());
+  memcpy(value, &valueLength, sizeof(valueLength));
+  memcpy(value + sizeof(valueLength), tableName.c_str(), tableName.length());
 
   RBFM_ScanIterator rbfm_ScanIterator;
   vector<string> attributeNames;
@@ -1059,12 +1067,14 @@ RC RM_IndexScanIterator::close() {
 
 void getIndexAttribute(void *indexRowBuffer, void *attrName,
                        vector<Attribute> &indexRecDesc) {
-  Record record = Record(indexRecDesc, (char *)indexRowBuffer);
-  memset(attrName, 0, PAGE_SIZE);
-  record.getAttributeValue("index-name", (char *)attrName);
+  //  Record record = Record(indexRecDesc, (char *)indexRowBuffer);
+  RawRecord record =
+      RawRecord(static_cast<const char *>(indexRowBuffer), indexRecDesc);
+  string indexAttrName = "index-name";
+  Value attributeName = record.getAttributeValue(indexAttrName);
   int length;
-  memcpy(&length, attrName, sizeof(int));
-  memmove(attrName, (char *)attrName + sizeof(length), length);
-  // now to make it compatible for string comparison append '\0'
-  memset((char *)attrName + length, 0, PAGE_SIZE - length);
+  memcpy(&length, attributeName.data, sizeof(int));
+  memset(attrName, 0, PAGE_SIZE);
+  memcpy((char *)attrName, attributeName.data + sizeof(length),
+         length);  // just copy string payload
 }

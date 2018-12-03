@@ -22,11 +22,6 @@ class ConditionEvaluator;
 class RawRecord;
 struct Condition;
 
-struct Value {
-  AttrType type;  // type of value
-  void *data;     // value
-};
-
 struct Condition {
   string lhsAttr;   // left-hand side attribute
   CompOp op;        // comparison operator
@@ -331,26 +326,6 @@ class Aggregate : public Iterator {
   // E.g. Relation=rel, attribute=attr, aggregateOp=MAX
   // output attrname = "MAX(rel.attr)"
   void getAttributes(vector<Attribute> &attrs) const {};
-};
-
-class RawRecord {
- public:
-  RawRecord(const char *rawRecord, vector<Attribute> &attrs);
-  Value &getAttributeValue(string &attrName);
-  Value &getAttributeValue(Attribute &attr);
-  Value &getAttributeValue(int attrIndex);
-  bool isFieldNull(int index);
-  unsigned char *getNullIndicatorArray() const;
-  int getNullIndicatorSize() const;
-  size_t getRecordSize() const;
-  const char *getBuffer() const;
-  const vector<Attribute> &getAttributes() const;
-
- private:
-  vector<Value> attributeValue;
-  const char *rawRecord;
-  vector<Attribute> attributes;
-  void setUpAttributeValue();
 };
 
 void joinRecords(const RawRecord &leftRec, const RawRecord &rightRec,
