@@ -460,15 +460,19 @@ RC RelationManager::insertTuple(const string &tableName, const void *data,
 
   // scan the Index.tbl to check which attributes of given table have indexes on
   // them
-  vector<string> attributeNames;
-  attributeNames.push_back("table-id");
-  attributeNames.push_back("index-name");
-  attributeNames.push_back("index-file-name");
+  vector<string> indexTblAttrNames;
+  indexTblAttrNames.push_back("table-id");
+  indexTblAttrNames.push_back("index-name");
+  indexTblAttrNames.push_back("index-file-name");
   RM_ScanIterator rm_ScanIterator;
-  const string indexTableName = "Index";
   const string tableIdAttribute = "table-id";
-  this->scan(indexTableName, tableIdAttribute, EQ_OP, &tableId, attributeNames,
-             rm_ScanIterator);
+
+  RBFM_ScanIterator rbfmScanner;
+  FileHandle indexTblFileHandle;
+  rbfm->openFile(indexCatalog, indexTblFileHandle);
+
+  rbfm->scan(indexTblFileHandle, indexTableRecordDescriptor, tableIdAttribute,
+             EQ_OP, &tableId, indexTblAttrNames, rbfmScanner);
 
   // create index entry for each row returned by Index.tbl
   void *indexRow = malloc(PAGE_SIZE);
@@ -478,14 +482,13 @@ RC RelationManager::insertTuple(const string &tableName, const void *data,
   IndexManager *ixManager = IndexManager::instance();
   IXFileHandle ixFileHandle;
   RID indexRID;
-  while (rm_ScanIterator.getNextTuple(indexRID, indexRow) != -1) {
-    // Get attribute from indexRow
-    //    getValueFromRawData(indexRow, attributeName,
-    //    indexTableRecordDescriptor,
-    //                        "index-name");
-    //    printTuple(indexTableRecordDescriptor, indexRow);
+  // for each matching attribute in the Index.tbl
+  while (rbfmScanner.getNextRecord(indexRID, indexRow) != RBFM_EOF) {
+    // get the name of the index attribute
     getIndexAttribute(indexRow, attributeName, indexTableRecordDescriptor);
-    for (int i = 0; i < recordDescriptor.size(); i++) {
+
+    // find the attribute type
+    for (size_t i = 0; i < recordDescriptor.size(); i++) {
       if ((recordDescriptor[i].name).compare((char *)attributeName) == 0) {
         attribute = recordDescriptor[i];
         break;
@@ -495,7 +498,9 @@ RC RelationManager::insertTuple(const string &tableName, const void *data,
     // Get key from insert raw data
     getValueFromRawData(data, key, recordDescriptor, (char *)attributeName);
 
+    // prepare the index file name
     string indexFileName = tableName + "_" + *(char *)attributeName + "_idx";
+
     if (ixManager->openFile(indexFileName, ixFileHandle) != 0) {
       return -1;
     }
@@ -509,9 +514,14 @@ RC RelationManager::insertTuple(const string &tableName, const void *data,
     }
   }
 
+  rbfm->closeFile(indexTblFileHandle);
+
   free(indexRow);
+  indexRow = nullptr;
   free(key);
+  key = nullptr;
   free(attributeName);
+  attributeName = nullptr;
   return 0;
 }
 
@@ -990,10 +1000,10 @@ RC RelationManager::getRecordDescriptorForTable(
   return success;
 }
 
-int RelationManager::getTableIdForTable(std::string tableName, RID &rid) {
+int RelationManager::getTableIdForTable(string tableName, RID &rid) {
   FileHandle fileHandle;
-  rbfm->openFile(tableCatalog, fileHandle);
-
+  RC opened = rbfm->openFile(tableCatalog, fileHandle);
+  cout << "File opened " << opened << endl;
   const string &conditionAttribute = "table-name";
   CompOp compOp = EQ_OP;
   char *value = (char *)malloc(PAGE_SIZE);
@@ -1026,7 +1036,8 @@ int RelationManager::getTableIdForTable(std::string tableName, RID &rid) {
       break;
     }
   }
-  rbfm->closeFile(fileHandle);
+  RC closed = rbfm->closeFile(fileHandle);
+  cout << "File closed " << closed << endl;
   free(data);
   data = NULL;
   return tableid;
