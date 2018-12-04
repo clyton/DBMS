@@ -1003,7 +1003,7 @@ RC RelationManager::getRecordDescriptorForTable(
 int RelationManager::getTableIdForTable(string tableName, RID &rid) {
   FileHandle fileHandle;
   RC opened = rbfm->openFile(tableCatalog, fileHandle);
-  cout << "File opened " << opened << endl;
+  //  cout << "File opened " << opened << endl;
   const string &conditionAttribute = "table-name";
   CompOp compOp = EQ_OP;
   char *value = (char *)malloc(PAGE_SIZE);
@@ -1037,7 +1037,7 @@ int RelationManager::getTableIdForTable(string tableName, RID &rid) {
     }
   }
   RC closed = rbfm->closeFile(fileHandle);
-  cout << "File closed " << closed << endl;
+  //  cout << "File closed " << closed << endl;
   free(data);
   data = NULL;
   return tableid;
