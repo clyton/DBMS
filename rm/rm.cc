@@ -6,6 +6,7 @@
 #include <iostream>
 
 #include "../rbf/pfm.h"
+#include "../rbf/rbfm.h"
 
 RC success = 0;
 RC failure = 1;
@@ -1086,6 +1087,6 @@ void getIndexAttribute(void *indexRowBuffer, void *attrName,
   int length;
   memcpy(&length, attributeName.data, sizeof(int));
   memset(attrName, 0, PAGE_SIZE);
-  memcpy((char *)attrName, attributeName.data + sizeof(length),
+  memcpy((char *)attrName, (char*)attributeName.data + sizeof(length),
          length);  // just copy string payload
 }
