@@ -278,10 +278,12 @@ void joinRecords(const RawRecord& leftRec, const RawRecord& rightRec,
 
   for (size_t i = 0; i < joinedAttrs.size(); ++i) {
     if (i < leftRec.getAttributes().size()) {
-      joinedNIA[i] = leftNIA[i];
+      joinedNIA[i / CHAR_BIT] |= leftNIA[i / CHAR_BIT] & (1 << (7 - i));
+
     } else {
       int rightNIAIndex = i - leftRec.getAttributes().size();
-      joinedNIA[i] = rightNIA[rightNIAIndex];
+      joinedNIA[i / CHAR_BIT] |=
+          rightNIA[rightNIAIndex / CHAR_BIT] & (1 << (7 - i));
     }
   }
 
