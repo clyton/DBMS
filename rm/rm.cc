@@ -439,6 +439,8 @@ RC getValueFromRawData(const void *data, void *key,
   Value keyValue = record.getAttributeValue(attributeName);
   memset(key, 0, PAGE_SIZE);
   memcpy(key, keyValue.data, PAGE_SIZE);
+  // TODO: Need to handle for null pointer values. Do not insert null values in
+  // index
   return 0;
 }
 

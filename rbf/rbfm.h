@@ -314,11 +314,12 @@ class RawRecord {
   Value &getAttributeValue(Attribute &attr);
   Value &getAttributeValue(int attrIndex);
   bool isFieldNull(int index);
-  unsigned char *getNullIndicatorArray() const;
+  const unsigned char *getNullIndicatorArray() const;
   int getNullIndicatorSize() const;
   size_t getRecordSize() const;
   const char *getBuffer() const;
   const vector<Attribute> &getAttributes() const;
+  ~RawRecord();
 
  private:
   vector<Value> attributeValue;
