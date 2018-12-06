@@ -629,17 +629,28 @@ RC Aggregate::getNextTuple(void *data)
   float min = __FLT_MAX__;
 
   char* tupleData = (char*)malloc(PAGE_SIZE); //TODO: free this
+  vector<Attribute> ittrAttrs;
+  this->iterator->getAttributes(ittrAttrs);
   //iterate and get next tuple 
+  bool isEOF = true;
   while(this->iterator->getNextTuple(tupleData) != QE_EOF)
   {
+    isEOF = false;
     //get attribute value from raw record
     //NOTE: Attribute can only be int or real
     //get attribute value from tuple format
-    RawRecord dataRecord(tupleData, aggAttrs);
+    RawRecord dataRecord(tupleData, ittrAttrs);
     float attrValue;
     Value value = dataRecord.getAttributeValue(aggAttr);
-    memcpy(&attrValue, value.data, 4); //TODO: value.data format does not have nullIndicator
-    
+    if(value.type == TypeInt)
+    {
+      int intAttrValue;
+      memcpy(&intAttrValue, value.data,sizeof(int)); //TODO: value.data format does not have nullIndicator
+      attrValue = (float)intAttrValue;
+    }
+    else if(value.type == TypeReal)
+      memcpy(&attrValue, value.data,sizeof(float));
+
     //check and update the aggregate variables
     float aggCount = 1.0f;
     aggregateFunctions(COUNT, count, attrValue, aggCount);
@@ -659,7 +670,7 @@ RC Aggregate::getNextTuple(void *data)
   returnAggregateVal(this->op, data, min, max, count, sum, average);
 
   //free(tupleData);
-  return 0;
+  return isEOF ? -1 : 0;
 
 }
 
