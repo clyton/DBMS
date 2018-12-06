@@ -1280,9 +1280,9 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
     for (string attrName : attributeNames) {
       char *attrValue = (char *)malloc(PAGE_SIZE);
       memset(attrValue, 0, PAGE_SIZE);
-      record->getAttributeValue(attrName, attrValue);
+      bool isNull = record->getAttributeValue(attrName, attrValue);
       AttrType attrType = record->getAttributeType(attrName);
-      if (attrValue == NULL) {
+      if (isNull) {
         makeFieldNull(nullIndicatorArray, fieldIndex);
         continue;
       } else if (attrType == TypeVarChar) {
