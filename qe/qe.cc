@@ -423,8 +423,8 @@ RC INLJoin::resetRightIterator() {
 
   switch (condition.op) {
     case EQ_OP:
-      memcpy(lowKey, leftValue.data, PAGE_SIZE);
-      memcpy(highKey, leftValue.data, PAGE_SIZE);
+      memcpy(lowKey, leftValue.data, leftValue.size);
+      memcpy(highKey, leftValue.data, leftValue.size);
       lowKeyInclusive = true;
       highKeyInclusive = true;
       break;
@@ -439,26 +439,26 @@ RC INLJoin::resetRightIterator() {
     case LT_OP:  // lhsAttr < rhsAttr; think like nullptr > rhsAttr > lhsAttr
       delete[] highKey;
       highKey = nullptr;
-      memcpy(lowKey, leftValue.data, PAGE_SIZE);
+      memcpy(lowKey, leftValue.data, leftValue.size);
       lowKeyInclusive = false;
       highKeyInclusive = false;
       break;
     case LE_OP:  // lshAttr <= rhsAttr; think like nullptr > rhsAttr >= lhsAttr
       delete[] highKey;
       highKey = nullptr;
-      memcpy(lowKey, leftValue.data, PAGE_SIZE);
+      memcpy(lowKey, leftValue.data, leftValue.size);
       lowKeyInclusive = true;
       highKeyInclusive = false;
       break;
     case GT_OP:  // lhsAttr > rhsAttr; think like nullptr < rhsAttr < lhsAttr
-      memcpy(highKey, leftValue.data, PAGE_SIZE);
+      memcpy(highKey, leftValue.data, leftValue.size);
       delete[] lowKey;
       lowKey = nullptr;
       lowKeyInclusive = false;
       highKeyInclusive = false;
       break;
     case GE_OP:  // lhsAttr >= rhsAttr; think like nullptr < rhsAttr <= lhsAttr
-      memcpy(highKey, leftValue.data, PAGE_SIZE);
+      memcpy(highKey, leftValue.data, leftValue.size);
       delete[] lowKey;
       lowKey = nullptr;
       lowKeyInclusive = false;
