@@ -547,8 +547,7 @@ Aggregate::Aggregate(Iterator *input, Attribute aggAttr, Attribute groupAttr, Ag
 	this->getAttributes(this->aggAttrs);
 }
 
-template<class T>
-void aggregateFunctions(AggregateOp op, T aggVal, T val, T avgCount){
+void aggregateFunctions(AggregateOp op, float &aggVal, float &val, float &avgCount){
 
 	switch(op){
 		case MIN:{
@@ -581,8 +580,8 @@ void aggregateFunctions(AggregateOp op, T aggVal, T val, T avgCount){
 	}
 }
 
-template<class T>
-void returnAggregateVal(AggregateOp &op, void* data, T min, T max, T count, T sum, T avg){
+
+void returnAggregateVal(AggregateOp &op, void* data, float &min, float &max, float &count, float &sum, float &avg){
 
 	int nullBytes = 1;
 	void* nullByteBuffer = malloc(nullBytes);
@@ -595,23 +594,23 @@ void returnAggregateVal(AggregateOp &op, void* data, T min, T max, T count, T su
 	switch(op){
 
 		case MIN:{
-			memcpy((char*)data+offset, &min, sizeof(T));
+			memcpy((char*)data+offset, &min, sizeof(float));
 			break;
 		}
 		case MAX:{
-			memcpy((char*)data+offset, &max, sizeof(T));
+			memcpy((char*)data+offset, &max, sizeof(float));
 			break;
 		}
 		case COUNT:{
-			memcpy((char*)data+offset, &count, sizeof(T));
+			memcpy((char*)data+offset, &count, sizeof(float));
 			break;
 		}
 		case SUM:{
-			memcpy((char*)data+offset, &sum, sizeof(T));
+			memcpy((char*)data+offset, &sum, sizeof(float));
 			break;
 		}
 		case AVG:{
-			memcpy((char*)data+offset, &avg, sizeof(T));
+			memcpy((char*)data+offset, &avg, sizeof(float));
 			break;
 		}
 
@@ -623,7 +622,7 @@ void returnAggregateVal(AggregateOp &op, void* data, T min, T max, T count, T su
 RC Aggregate::getNextTuple(void *data)
 {
   //initialize aggregate variables
-  int count = 0.0;
+  float count = 0;
   float average = 0.0;
   float sum = 0.0;
   float max =  __FLT_MIN__;
@@ -639,25 +638,25 @@ RC Aggregate::getNextTuple(void *data)
     RawRecord dataRecord(tupleData, aggAttrs);
     float attrValue;
     Value value = dataRecord.getAttributeValue(aggAttr);
-    memcpy(&attrValue, value.data, sizeof(float)); //TODO: value.data format does not have nullIndicator
-
+    memcpy(&attrValue, value.data, 4); //TODO: value.data format does not have nullIndicator
+    
     //check and update the aggregate variables
-
-    aggregateFunctions<int>(COUNT, count, 1, 1);
-    aggregateFunctions<float>(SUM, sum, attrValue, 1.0f);
+    float aggCount = 1.0f;
+    aggregateFunctions(COUNT, count, attrValue, aggCount);
+    aggregateFunctions(SUM, sum, attrValue, aggCount);
 
     if(this->op == MAX)
-      aggregateFunctions<float>(MAX, max, attrValue, 1.0f);
+      aggregateFunctions(MAX, max, attrValue, aggCount);
     else if(this->op == MIN)
-      aggregateFunctions<float>(MIN, min, attrValue, 1.0f);
+      aggregateFunctions(MIN, min, attrValue, aggCount);
   }
 
   if(this->op == AVG)
-    aggregateFunctions<float>(AVG, average, sum, count);
+    aggregateFunctions(AVG, average, sum, count);
 
   //return aggregate variables in required format
 
-  returnAggregateVal<float>(this->op, data, min, max, count, sum, average);
+  returnAggregateVal(this->op, data, min, max, count, sum, average);
 
   //free(tupleData);
   return 0;
