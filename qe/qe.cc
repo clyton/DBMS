@@ -66,7 +66,10 @@ Project::~Project() {}
 RC Project::getNextTuple(void* data) {
   char* unprojectedData = new char[PAGE_SIZE]();
   RC isEOF = input->getNextTuple(unprojectedData);
-  if (isEOF != 0) return (isEOF);
+  if (isEOF != 0) {
+    delete[] unprojectedData;
+    return (isEOF);
+  }
 
   vector<Attribute> attrs;
   input->getAttributes(attrs);
@@ -97,6 +100,8 @@ RC Project::getNextTuple(void* data) {
     }
   }
   memcpy(data, nullIndicator, niaSize);
+  delete[] unprojectedData;
+  delete[] nullIndicator;
   return (isEOF);
 }
 
@@ -139,6 +144,10 @@ BNLJoin::~BNLJoin() {
   if (leftTableBuffer) {
     delete[] leftTableBuffer;
     leftTableBuffer = nullptr;
+  }
+  if (rightTupleBuffer) {
+    delete[] rightTupleBuffer;
+    rightTupleBuffer = nullptr;
   }
   if (cEval) {
     delete cEval;
@@ -267,23 +276,24 @@ void joinRecords(const RawRecord& leftRec, const RawRecord& rightRec,
 
   int leftNIASize = leftRec.getNullIndicatorSize();
   int leftPayloadSize = leftRec.getRecordSize() - leftNIASize;
-  unsigned char* leftNIA = leftRec.getNullIndicatorArray();
+  const unsigned char* leftNIA = leftRec.getNullIndicatorArray();
 
   int rightNIASize = rightRec.getNullIndicatorSize();
   int rightPayloadSize = rightRec.getRecordSize() - rightNIASize;
-  unsigned char* rightNIA = rightRec.getNullIndicatorArray();
+  const unsigned char* rightNIA = rightRec.getNullIndicatorArray();
 
   int joinedNIASize = getSizeForNullIndicator((int)(joinedAttrs.size()));
   unsigned char* joinedNIA = new unsigned char[joinedNIASize]();
 
   for (size_t i = 0; i < joinedAttrs.size(); ++i) {
     if (i < leftRec.getAttributes().size()) {
-      joinedNIA[i / CHAR_BIT] |= leftNIA[i / CHAR_BIT] & (1 << (7 - i));
+      joinedNIA[i / CHAR_BIT] |=
+          (leftNIA[i / CHAR_BIT] & (1 << (7 - (i % CHAR_BIT))));
 
     } else {
       int rightNIAIndex = i - leftRec.getAttributes().size();
-      joinedNIA[i / CHAR_BIT] |=
-          rightNIA[rightNIAIndex / CHAR_BIT] & (1 << (7 - i));
+      joinedNIA[i / CHAR_BIT] |= (rightNIA[rightNIAIndex / CHAR_BIT] &
+                                  (1 << (7 - (rightNIAIndex % CHAR_BIT))));
     }
   }
 
@@ -299,6 +309,8 @@ void joinRecords(const RawRecord& leftRec, const RawRecord& rightRec,
   // copy the right payload
   memcpy(joinedRecBuf + joinedBufOffset, rightRec.getBuffer() + rightNIASize,
          rightPayloadSize);
+
+  delete[] joinedNIA;
 }
 
 RC BNLJoin::loadNextBlockInMemory() {
@@ -392,9 +404,8 @@ RC INLJoin::setState() {
 }
 
 RC INLJoin::resetRightIterator() {
-  char *lowKey, *highKey;
-  lowKey = new char[PAGE_SIZE]();
-  highKey = new char[PAGE_SIZE]();
+  memset(lowKey, 0, PAGE_SIZE);
+  memset(highKey, 0, PAGE_SIZE);
   bool lowKeyInclusive, highKeyInclusive;
 
   RawRecord leftRec(leftTuple, lAttr);
@@ -489,6 +500,9 @@ INLJoin::INLJoin(Iterator* leftIn, IndexScan* rightIn,
   // lastly initialize condition evaluator with joinedAttributes
   this->cEval = new ConditionEvaluator(this->condition, joinedAttributes);
 
+  lowKey = new char[PAGE_SIZE]();
+  highKey = new char[PAGE_SIZE]();
+
   // prepare initial condition for getNextTuple
   isLeftTableEmpty = (leftIn->getNextTuple(leftTuple) == QE_EOF);
   if (!isLeftTableEmpty) resetRightIterator();
@@ -507,6 +521,8 @@ INLJoin::~INLJoin() {
     delete[] rightTuple;
     rightTuple = nullptr;
   }
+  delete[] lowKey;
+  delete[] highKey;
 }
 
 ConditionEvaluator::~ConditionEvaluator() {}
