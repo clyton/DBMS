@@ -508,3 +508,146 @@ INLJoin::~INLJoin() {
 }
 
 ConditionEvaluator::~ConditionEvaluator() {}
+
+
+//Aggregate
+
+Aggregate::Aggregate(Iterator *input, Attribute aggAttr, AggregateOp op){
+	this->iterator = input;
+	this->aggAttr = aggAttr;
+	this->op = op;
+
+	this->getAttributes(this->aggAttrs);
+}
+
+Aggregate::Aggregate(Iterator *input, Attribute aggAttr, Attribute groupAttr, AggregateOp op){
+	this->iterator = input;
+	this->aggAttr = aggAttr;
+	this->groupAttr = groupAttr;
+	this->op = op;
+
+	this->getAttributes(this->aggAttrs);
+}
+
+template<class T>
+void aggregateFunctions(AggregateOp op, T aggVal, T val, T avgCount){
+
+	switch(op){
+		case MIN:{
+			if(val < aggVal)
+        aggVal = val;
+			break;
+		}
+		case MAX:{
+			if(val > aggVal)
+        aggVal = val;
+			break;
+		}
+		case COUNT:{
+			aggVal += 1; 
+			break;
+		}
+		case SUM:{
+			aggVal += val;
+			break;
+		}
+		case AVG:{
+			if(avgCount > 0)
+      {
+        aggVal = val/avgCount;
+      }
+      else
+        cerr<< "Error";
+			break;
+		}
+	}
+}
+
+template<class T>
+void returnAggregateVal(AggregateOp &op, void* data, T min, T max, T count, T sum, T avg){
+
+	int nullBytes = 1;
+	void* nullByteBuffer = malloc(nullBytes);
+	memset(nullByteBuffer, 0, nullBytes);
+
+	int offset = 0;
+	memcpy((char*)data+offset, nullByteBuffer, nullBytes);
+	offset += nullBytes;
+
+	switch(op){
+
+		case MIN:{
+			memcpy((char*)data+offset, &min, sizeof(T));
+			break;
+		}
+		case MAX:{
+			memcpy((char*)data+offset, &max, sizeof(T));
+			break;
+		}
+		case COUNT:{
+			memcpy((char*)data+offset, &count, sizeof(T));
+			break;
+		}
+		case SUM:{
+			memcpy((char*)data+offset, &sum, sizeof(T));
+			break;
+		}
+		case AVG:{
+			memcpy((char*)data+offset, &avg, sizeof(T));
+			break;
+		}
+
+	}
+}
+
+
+
+RC Aggregate::getNextTuple(void *data)
+{
+  //initialize aggregate variables
+  int count = 0.0;
+  float average = 0.0;
+  float sum = 0.0;
+  float max =  __FLT_MIN__;
+  float min = __FLT_MAX__;
+
+  char* tupleData = (char*)malloc(PAGE_SIZE); //TODO: free this
+  //iterate and get next tuple 
+  while(this->iterator->getNextTuple(tupleData) != QE_EOF)
+  {
+    //get attribute value from raw record
+    //NOTE: Attribute can only be int or real
+    //get attribute value from tuple format
+    RawRecord dataRecord(tupleData, aggAttrs);
+    float attrValue;
+    Value value = dataRecord.getAttributeValue(aggAttr);
+    memcpy(&attrValue, value.data, sizeof(float)); //TODO: value.data format does not have nullIndicator
+
+    //check and update the aggregate variables
+
+    aggregateFunctions<int>(COUNT, count, 1, 1);
+    aggregateFunctions<float>(SUM, sum, attrValue, 1.0f);
+
+    if(this->op == MAX)
+      aggregateFunctions<float>(MAX, max, attrValue, 1.0f);
+    else if(this->op == MIN)
+      aggregateFunctions<float>(MIN, min, attrValue, 1.0f);
+  }
+
+  if(this->op == AVG)
+    aggregateFunctions<float>(AVG, average, sum, count);
+
+  //return aggregate variables in required format
+
+  returnAggregateVal<float>(this->op, data, min, max, count, sum, average);
+
+  //free(tupleData);
+  return 0;
+
+}
+
+
+void Aggregate::getAttributes(vector<Attribute> &attrs) const{
+	this->iterator->getAttributes(attrs);
+}
+
