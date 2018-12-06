@@ -278,6 +278,7 @@ class INLJoin : public Iterator {
   vector<Attribute> joinedAttributes;
   vector<Attribute> lAttr;
   vector<Attribute> rAttr;
+  char *lowKey, *highKey;
   RC setState();
   RC resetRightIterator();  // close and open a new iterator
 };

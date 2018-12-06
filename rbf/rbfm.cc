@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <memory>
 
 #define SLOT_SIZE sizeof(struct SlotDirectory)
 const RC success = 0;
@@ -1279,9 +1280,9 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
     for (string attrName : attributeNames) {
       char *attrValue = (char *)malloc(PAGE_SIZE);
       memset(attrValue, 0, PAGE_SIZE);
-      record->getAttributeValue(attrName, attrValue);
+      bool isNull = record->getAttributeValue(attrName, attrValue);
       AttrType attrType = record->getAttributeType(attrName);
-      if (attrValue == NULL) {
+      if (isNull) {
         makeFieldNull(nullIndicatorArray, fieldIndex);
         continue;
       } else if (attrType == TypeVarChar) {
@@ -1644,18 +1645,19 @@ Value &RawRecord::getAttributeValue(const string &attributeName) {
 }
 
 bool RawRecord::isFieldNull(int index) {
-  unsigned char *nullIndicatorArray = getNullIndicatorArray();
+  const unsigned char *nullIndicatorArray = getNullIndicatorArray();
   int byteNumber = index / 8;
   bool isNull = nullIndicatorArray[byteNumber] & (1 << (7 - index % 8));
-  delete[] nullIndicatorArray;
   return (isNull);
 }
 
-unsigned char *RawRecord::getNullIndicatorArray() const {
+const unsigned char *RawRecord::getNullIndicatorArray() const {
   int size = getNullIndicatorSize();
-  unsigned char *nullIndicatorArray = new unsigned char[size]();
-  memcpy(nullIndicatorArray, rawRecord, size);
-  return (nullIndicatorArray);
+  return (const unsigned char *)rawRecord;
+  //  shared_ptr<unsigned char> nullIndicatorArray(
+  //      new unsigned char[size], std::default_delete<unsigned char[]>());
+  //  memcpy(nullIndicatorArray.get(), rawRecord, size);
+  //  return (nullIndicatorArray.get());
 }
 
 int RawRecord::getNullIndicatorSize() const {
@@ -1681,4 +1683,10 @@ size_t RawRecord::getRecordSize() const {
 
 int getSizeForNullIndicator(int fieldCount) {
   return ceil((double)fieldCount / CHAR_BIT);
+}
+
+RawRecord::~RawRecord() {
+  for (Value v : attributeValue) {
+    delete[]((char *)v.data);
+  }
 }
