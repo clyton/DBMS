@@ -2,6 +2,7 @@
 #define _qe_h_
 
 #include <vector>
+#include <map>
 
 #include "../ix/ix.h"
 #include "../rbf/rbfm.h"
@@ -308,6 +309,9 @@ class Aggregate : public Iterator {
 	Attribute groupAttr;
 	AggregateOp op;
 	vector<Attribute> aggAttrs;
+  map<string, float> groupedVals;
+  map<string, float>::iterator nextGroupedVal;
+  bool isGroupBy;
 
   // Mandatory
   // Basic aggregation

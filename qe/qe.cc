@@ -8,6 +8,9 @@
 #include <cstring>
 #include <iostream>
 #include <string>
+#include <vector>
+#include <map>
+#include <iterator>
 
 #include "../rbf/pfm.h"
 
@@ -530,23 +533,6 @@ ConditionEvaluator::~ConditionEvaluator() {}
 
 //Aggregate
 
-Aggregate::Aggregate(Iterator *input, Attribute aggAttr, AggregateOp op){
-	this->iterator = input;
-	this->aggAttr = aggAttr;
-	this->op = op;
-
-	this->getAttributes(this->aggAttrs);
-}
-
-Aggregate::Aggregate(Iterator *input, Attribute aggAttr, Attribute groupAttr, AggregateOp op){
-	this->iterator = input;
-	this->aggAttr = aggAttr;
-	this->groupAttr = groupAttr;
-	this->op = op;
-
-	this->getAttributes(this->aggAttrs);
-}
-
 void aggregateFunctions(AggregateOp op, float &aggVal, float &val, float &avgCount){
 
 	switch(op){
@@ -580,8 +566,114 @@ void aggregateFunctions(AggregateOp op, float &aggVal, float &val, float &avgCou
 	}
 }
 
+Aggregate::Aggregate(Iterator *input, Attribute aggAttr, AggregateOp op){
+	this->iterator = input;
+	this->aggAttr = aggAttr;
+	this->op = op;
+  this->isGroupBy = false;
+	this->getAttributes(this->aggAttrs);
+}
 
-void returnAggregateVal(AggregateOp &op, void* data, float &min, float &max, float &count, float &sum, float &avg){
+Aggregate::Aggregate(Iterator *input, Attribute aggAttr, Attribute groupAttr, AggregateOp op){
+	this->iterator = input;
+	this->aggAttr = aggAttr;
+	this->groupAttr = groupAttr;
+	this->op = op;
+  this->isGroupBy = true;
+	this->getAttributes(this->aggAttrs);
+  
+  //initialize aggregate variables
+  float count = 0;
+  float sum = 0.0;
+  float max =  __FLT_MIN__;
+  float min = __FLT_MAX__;
+  float aggCount = 1.0f;
+
+  char* tupleData = (char*)malloc(PAGE_SIZE); //TODO: free this
+  vector<Attribute> ittrAttrs;
+  this->iterator->getAttributes(ittrAttrs);
+  //iterate and get next tuple 
+  while(this->iterator->getNextTuple(tupleData) != QE_EOF)
+  {
+    RawRecord dataRecord(tupleData, ittrAttrs);
+
+    //get the group by attribute value
+    string groupByVal;
+    Value gvalue = dataRecord.getAttributeValue(groupAttr);
+    if(gvalue.type == TypeVarChar)
+    {
+      int l;
+      memcpy(&l, gvalue.data, sizeof(int));
+      char* groupByVarchar = (char*)malloc(l);
+      memcpy(groupByVarchar, (char*)gvalue.data + sizeof(int), l);
+      groupByVal.assign(groupByVarchar, l);
+      free(groupByVarchar);
+    }
+    else if(gvalue.type == TypeInt)
+    {
+      int groupByInt;
+      memcpy(&groupByInt, gvalue.data, sizeof(int));
+      groupByVal = to_string(groupByInt);
+    }
+    else 
+    {
+      float groupByFloat;
+      memcpy(&groupByFloat, gvalue.data, sizeof(float));
+      groupByVal = to_string(groupByFloat);
+    }
+
+    float attrValue;
+    Value value = dataRecord.getAttributeValue(aggAttr);
+    if(value.type == TypeInt)
+    {
+      int intAttrValue;
+      memcpy(&intAttrValue, value.data,sizeof(int)); //TODO: value.data format does not have nullIndicator
+      attrValue = (float)intAttrValue;
+    }
+    else if(value.type == TypeReal)
+      memcpy(&attrValue, value.data,sizeof(float));
+
+    if(groupedVals.count(groupByVal)==0)
+    {
+      count = 0;
+      sum = 0.0;
+      max =  __FLT_MIN__;
+      min = __FLT_MAX__;
+    }
+    else
+    {
+      count = groupedVals[groupByVal];
+      sum = groupedVals[groupByVal];
+      max = groupedVals[groupByVal];
+      min = groupedVals[groupByVal];
+    }
+
+    aggregateFunctions(COUNT, count, attrValue, aggCount);
+    aggregateFunctions(SUM, sum, attrValue, aggCount);
+
+    if(this->op == MAX)
+      aggregateFunctions(MAX, max, attrValue, aggCount);
+    else if(this->op == MIN)
+      aggregateFunctions(MIN, min, attrValue, aggCount);
+
+    if(op == COUNT)
+      groupedVals[groupByVal] = count;
+    else if(op == SUM)
+      groupedVals[groupByVal] = sum;
+    else if(op == MAX)
+      groupedVals[groupByVal] = max;
+    else if(op == MIN)
+      groupedVals[groupByVal] = min;
+
+  }
+
+  this->nextGroupedVal = groupedVals.begin();
+  free(tupleData);
+
+}
+
+
+void returnAggregateVal(AggregateOp &op, void* data, float &min, float &max, float &count, float &sum, float &avg, bool isGroupBy, string &groupByVal, const Attribute &groupByAttr){
 
 	int nullBytes = 1;
 	void* nullByteBuffer = malloc(nullBytes);
@@ -590,6 +682,30 @@ void returnAggregateVal(AggregateOp &op, void* data, float &min, float &max, flo
 	int offset = 0;
 	memcpy((char*)data+offset, nullByteBuffer, nullBytes);
 	offset += nullBytes;
+
+  if(isGroupBy)
+  {
+    if(groupByAttr.type == TypeVarChar)
+    {
+      int len = strlen(groupByVal.c_str());
+      memcpy((char*)data+offset, &len, sizeof(int));
+      offset += sizeof(int);
+      memcpy((char*)data+offset, groupByVal.c_str(), len);
+      offset += len;
+    }
+    else if(groupByAttr.type == TypeInt)
+    {
+      int ogi = stoi(groupByVal);
+      memcpy((char*)data+offset, &ogi, sizeof(int));
+      offset += sizeof(int);
+    }
+    else
+    {
+      float ogf = stof(groupByVal);
+      memcpy((char*)data+offset, &ogf, sizeof(float));
+      offset += sizeof(float);
+    }
+  }
 
 	switch(op){
 
@@ -627,49 +743,75 @@ RC Aggregate::getNextTuple(void *data)
   float sum = 0.0;
   float max =  __FLT_MIN__;
   float min = __FLT_MAX__;
-
-  char* tupleData = (char*)malloc(PAGE_SIZE); //TODO: free this
-  vector<Attribute> ittrAttrs;
-  this->iterator->getAttributes(ittrAttrs);
-  //iterate and get next tuple 
+  float aggCount = 1.0f;
+  string groupByVal;
   bool isEOF = true;
-  while(this->iterator->getNextTuple(tupleData) != QE_EOF)
+  
+  if(isGroupBy)
   {
-    isEOF = false;
-    //get attribute value from raw record
-    //NOTE: Attribute can only be int or real
-    //get attribute value from tuple format
-    RawRecord dataRecord(tupleData, ittrAttrs);
-    float attrValue;
-    Value value = dataRecord.getAttributeValue(aggAttr);
-    if(value.type == TypeInt)
+    if(nextGroupedVal!=groupedVals.end())
     {
-      int intAttrValue;
-      memcpy(&intAttrValue, value.data,sizeof(int)); //TODO: value.data format does not have nullIndicator
-      attrValue = (float)intAttrValue;
+      isEOF = false;
+      groupByVal = nextGroupedVal->first;
+      if(op == COUNT)
+        count = nextGroupedVal->second;
+      else if(op == SUM)
+        sum = nextGroupedVal->second;
+      else if(op == MAX)
+        max = nextGroupedVal->second;
+      else if(op == MIN)
+        min = nextGroupedVal->second;
+      
+      nextGroupedVal++;
     }
-    else if(value.type == TypeReal)
-      memcpy(&attrValue, value.data,sizeof(float));
+  }
+  else
+  {
+    char* tupleData = (char*)malloc(PAGE_SIZE); //TODO: free this
+    vector<Attribute> ittrAttrs;
+    this->iterator->getAttributes(ittrAttrs);
+    //iterate and get next tuple 
+    
+    while(this->iterator->getNextTuple(tupleData) != QE_EOF)
+    {
+      isEOF = false;
+      //get attribute value from raw record
+      //NOTE: Attribute can only be int or real
+      //get attribute value from tuple format
 
-    //check and update the aggregate variables
-    float aggCount = 1.0f;
-    aggregateFunctions(COUNT, count, attrValue, aggCount);
-    aggregateFunctions(SUM, sum, attrValue, aggCount);
+      RawRecord dataRecord(tupleData, ittrAttrs);
+      float attrValue;
+      Value value = dataRecord.getAttributeValue(aggAttr);
+      if(value.type == TypeInt)
+      {
+        int intAttrValue;
+        memcpy(&intAttrValue, value.data,sizeof(int)); //TODO: value.data format does not have nullIndicator
+        attrValue = (float)intAttrValue;
+      }
+      else if(value.type == TypeReal)
+        memcpy(&attrValue, value.data,sizeof(float));
 
-    if(this->op == MAX)
-      aggregateFunctions(MAX, max, attrValue, aggCount);
-    else if(this->op == MIN)
-      aggregateFunctions(MIN, min, attrValue, aggCount);
+      //check and update the aggregate variables
+      
+      aggregateFunctions(COUNT, count, attrValue, aggCount);
+      aggregateFunctions(SUM, sum, attrValue, aggCount);
+
+      if(this->op == MAX)
+        aggregateFunctions(MAX, max, attrValue, aggCount);
+      else if(this->op == MIN)
+        aggregateFunctions(MIN, min, attrValue, aggCount);
+    }
+
+    if(this->op == AVG)
+      aggregateFunctions(AVG, average, sum, count);
+
+    free(tupleData);
   }
 
-  if(this->op == AVG)
-    aggregateFunctions(AVG, average, sum, count);
-
   //return aggregate variables in required format
+  if(!isEOF)
+    returnAggregateVal(this->op, data, min, max, count, sum, average, isGroupBy, groupByVal, groupAttr);
 
-  returnAggregateVal(this->op, data, min, max, count, sum, average);
-
-  //free(tupleData);
   return isEOF ? -1 : 0;
 
 }
