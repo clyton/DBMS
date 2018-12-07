@@ -597,7 +597,7 @@ int populateLeftTable2() {
 	memset(nullsIndicator, 0, nullAttributesIndicatorActualSize);
 
     unsigned char *nullsIndicator2 = (unsigned char *) malloc(nullAttributesIndicatorActualSize);
-	memset(nullsIndicator, 0, nullAttributesIndicatorActualSize);
+	memset(nullsIndicator2, 0, nullAttributesIndicatorActualSize);
 	nullsIndicator2[0] = 128; // 10000000: column A - null
 
 	for (int i = 0; i < tupleCount; ++i) {
@@ -643,7 +643,7 @@ int populateLeftTable3(vector<RID> &rids) {
 	memset(nullsIndicator, 0, nullAttributesIndicatorActualSize);
 
     unsigned char *nullsIndicator3 = (unsigned char *) malloc(nullAttributesIndicatorActualSize);
-	memset(nullsIndicator, 0, nullAttributesIndicatorActualSize);
+	memset(nullsIndicator3, 0, nullAttributesIndicatorActualSize);
 	nullsIndicator3[0] = 0; // 00000000: no null fields
 
 	for (int i = 0; i < 3; ++i) {
@@ -687,7 +687,7 @@ int updateLeftTable3(vector<RID> &rids) {
 	memset(nullsIndicator, 0, nullAttributesIndicatorActualSize);
 
     unsigned char *nullsIndicator3 = (unsigned char *) malloc(nullAttributesIndicatorActualSize);
-	memset(nullsIndicator, 0, nullAttributesIndicatorActualSize);
+	memset(nullsIndicator3, 0, nullAttributesIndicatorActualSize);
 	nullsIndicator3[0] = 0; // 00000000: no null fields
 
 

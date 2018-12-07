@@ -10,8 +10,7 @@
 #include "qe_test_util.h"
 
 RC testCase_14() {
-	// Mandatory for the grad teams/solos
-	// Optional for the undergrad solos: +5 extra credit points will be given based on the results of the basic aggregation related tests.
+	// Mandatory for all
 	// 1. Basic aggregation - AVG
 	// SELECT AVG(right.B) from left
 

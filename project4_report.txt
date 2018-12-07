@@ -14,6 +14,19 @@ gcc version :
 
 3. Block Nested Loop Join (If you have implemented this feature)
 - Describe how your block nested loop join works (especially, how you manage the given buffers.)
+* steps
+  1. leftMemBuf <- load the left table pages in memory using leftIn if rightIn has reached EOF
+  2. If leftIn has reached end of file then return 
+  3. rRec <- read next tuple from right table if cursor of leftMemBuf has reached end of buffer
+  4. lRec <- cursor of leftMemBuf
+  5. join lRec with rRec 
+  6. if lRec join rRec satisfies condition
+     1. jLR <- join lRec rRec
+     2. advance cursor of leftMemBuf
+     3. if on advancing cursor is invalid, read rRec <- read next tuple from rightIn
+     4. set cursor of leftMemBuf to 0
+     5. return success
+  7. 
 
 
 4. Index Nested Loop Join (If you have implemented this feature)
@@ -38,4 +51,3 @@ gcc version :
 
 6. Other (optional)
 - Freely use this section to tell us about things that are related to the project 4, but not related to the other sections (optional)
-

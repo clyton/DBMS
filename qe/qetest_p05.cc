@@ -12,7 +12,7 @@
 RC privateTestCase_5() {
 	RC rc = success;
 	// Functions Tested
-	// Left deep block nested loop join - optional for undergrad solo
+	// Left deep block nested loop join
 	cerr << endl << "***** In QE Private Test Case 5 *****" << endl;
 
 	// Prepare the iterator and condition
