@@ -1,6 +1,8 @@
 #ifndef _rbfm_h_
 #define _rbfm_h_
 
+#include <stddef.h>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -204,13 +206,16 @@ class Record {
  private:
   vector<Attribute> recordDescriptor;
   char *recordData;
+  //  shared_ptr<char> recordData;
   r_slot recordSize;
   r_slot numberOfFields = 0;
   char tombstoneIndicator = 0;
   RID tombstoneRID;
-  r_slot *fieldPointers = NULL;
-  char *inputData = NULL;
-  unsigned char *nullIndicatorArray = NULL;
+  //  r_slot *fieldPointers = NULL;
+  shared_ptr<r_slot> fieldPointers;
+  //  char *inputData = NULL;
+  shared_ptr<char> inputData;
+  shared_ptr<unsigned char> nullIndicatorArray;
   r_slot sizeOfNullIndicatorArray = 0;
 
   void setNumberOfFields();
@@ -305,14 +310,45 @@ bool CheckCondition(AttrType conditionAttributeType, char *attributeValue,
 struct Value {
   AttrType type;  // type of value
   void *data;     // value
+  size_t size = 0;
+  bool operator<(const Value &o) const {
+    if (data == nullptr && o.data == nullptr) return true;
+
+    if (data == nullptr && o.data != nullptr) return false;
+
+    if (data != nullptr && o.data == nullptr) return false;
+
+    switch (type) {
+      case TypeInt: {
+        int *myInt = (int *)data;
+        int *otherInt = (int *)o.data;
+        return ((*myInt - *otherInt) < 0);
+      }
+      case TypeReal: {
+        float *myFloat = (float *)data;
+        float *otherFloat = (float *)o.data;
+        return ((*myFloat - *otherFloat) < 0);
+      }
+      case TypeVarChar: {
+        int myLength = size - sizeof(int);
+        int oLength = o.size - sizeof(int);
+        string myVarChar, otherVarChar;
+        myVarChar.assign((char *)data + sizeof(myLength), myLength);
+        otherVarChar.assign((char *)o.data + sizeof(oLength), oLength);
+        return ((myVarChar.compare(otherVarChar)) < 0);
+      }
+      default:
+        return false;
+    }
+  }
 };
 
 class RawRecord {
  public:
   RawRecord(const char *rawRecord, const vector<Attribute> &attrs);
-  Value &getAttributeValue(const string &attrName);
-  Value &getAttributeValue(Attribute &attr);
-  Value &getAttributeValue(int attrIndex);
+  Value getAttributeValue(const string &attrName);
+  Value getAttributeValue(Attribute &attr);
+  Value getAttributeValue(int attrIndex);
   bool isFieldNull(int index);
   const unsigned char *getNullIndicatorArray() const;
   int getNullIndicatorSize() const;

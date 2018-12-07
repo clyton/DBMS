@@ -522,6 +522,7 @@ RC RecordBasedFileManager::insertRecord(
   rid.slotNum = insertRID.slotNum;
   // return 0
 
+  delete[] fieldPointers;
   free(record);
   record = NULL;
   //	free(nullIndicatorArray);
@@ -856,9 +857,12 @@ void Record::setTombstoneIndicatorPtr() {
 }
 
 void Record::setFieldPointers() {
-  fieldPointers = (r_slot *)malloc(sizeof(r_slot) * numberOfFields);
-  memset(fieldPointers, 0, sizeof(r_slot) * numberOfFields);
-  memcpy(fieldPointers,
+  shared_ptr<r_slot> fp(new r_slot[numberOfFields](),
+                        default_delete<r_slot[]>());
+  fieldPointers = fp;
+  //  fieldPointers = (r_slot *)malloc(sizeof(r_slot) * numberOfFields);
+  //  memset(fieldPointers, 0, sizeof(r_slot) * numberOfFields);
+  memcpy(fieldPointers.get(),
          recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) +
              sizeof(tombstoneRID),
          sizeof(r_slot) * numberOfFields);
@@ -866,9 +870,9 @@ void Record::setFieldPointers() {
 
 void Record::setInputData() {
   r_slot sizeOfInputData = getRawRecordSize();
-  inputData = (char *)malloc(sizeOfInputData);
-  memset(inputData, 0, sizeOfInputData);
-  memcpy(inputData,
+  shared_ptr<char> id(new char[sizeOfInputData](), default_delete<char[]>());
+  inputData = id;
+  memcpy(inputData.get(),
          recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) +
              sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields,
          sizeOfInputData);
@@ -877,10 +881,12 @@ void Record::setInputData() {
 void Record::setNullIndicatorArray() {
   sizeOfNullIndicatorArray = 0;
   sizeOfNullIndicatorArray = ceil(numberOfFields / 8.0);
-  nullIndicatorArray = (unsigned char *)malloc(sizeOfNullIndicatorArray);
-  memset(nullIndicatorArray, 0, sizeOfNullIndicatorArray);
+  shared_ptr<unsigned char> nia(new unsigned char[sizeOfNullIndicatorArray](),
+                                default_delete<unsigned char[]>());
 
-  memcpy(nullIndicatorArray,
+  nullIndicatorArray = nia;
+
+  memcpy(nullIndicatorArray.get(),
          recordData + sizeof(numberOfFields) + sizeof(tombstoneIndicator) +
              sizeof(tombstoneRID) + sizeof(r_slot) * numberOfFields,
          sizeOfNullIndicatorArray);
@@ -889,7 +895,7 @@ void Record::setNullIndicatorArray() {
 r_slot Record::getLastFieldIndex() {
   r_slot lastFieldIndex = numberOfFields - 1;
   r_slot lastFieldPointerCounter = numberOfFields - 1;
-  r_slot lastFieldPointer = fieldPointers[lastFieldPointerCounter];
+  r_slot lastFieldPointer = fieldPointers.get()[lastFieldPointerCounter];
   while (lastFieldPointer == USHRT_MAX) {
     lastFieldPointerCounter -= 1;
     if (lastFieldPointer < 0) {
@@ -897,7 +903,7 @@ r_slot Record::getLastFieldIndex() {
       lastFieldIndex = USHRT_MAX;
       break;
     } else {
-      lastFieldPointer = fieldPointers[lastFieldPointerCounter];
+      lastFieldPointer = fieldPointers.get()[lastFieldPointerCounter];
       lastFieldIndex = lastFieldPointerCounter;
     }
   }
@@ -907,7 +913,7 @@ r_slot Record::getLastFieldIndex() {
 r_slot Record::getFirstFieldIndex() {
   r_slot firstFieldIndex = 0;
   r_slot firstFieldPointerCounter = 0;
-  r_slot firstFieldPointer = fieldPointers[firstFieldPointerCounter];
+  r_slot firstFieldPointer = fieldPointers.get()[firstFieldPointerCounter];
   while (firstFieldPointer == USHRT_MAX) {
     firstFieldPointerCounter += 1;
     if (firstFieldPointer > numberOfFields - 1) {
@@ -915,7 +921,7 @@ r_slot Record::getFirstFieldIndex() {
       firstFieldIndex = USHRT_MAX;
       break;
     } else {
-      firstFieldPointer = fieldPointers[firstFieldPointerCounter];
+      firstFieldPointer = fieldPointers.get()[firstFieldPointerCounter];
       firstFieldIndex = firstFieldPointerCounter;
     }
   }
@@ -927,7 +933,7 @@ r_slot Record::getRawRecordSize() {
   r_slot firstFieldIndex = getFirstFieldIndex();
   if (lastFieldIndex == USHRT_MAX) return 0;
   if (firstFieldIndex == USHRT_MAX) return 0;
-  r_slot lastFieldPointer = fieldPointers[lastFieldIndex];
+  r_slot lastFieldPointer = fieldPointers.get()[lastFieldIndex];
   AttrType lastRecordType = recordDescriptor[lastFieldIndex].type;
   int lastFieldLength = 0;
   if (lastRecordType == TypeVarChar) {
@@ -938,7 +944,7 @@ r_slot Record::getRawRecordSize() {
     lastFieldLength = 4;
   }
   r_slot sizeOfInputData = lastFieldPointer + lastFieldLength -
-                           fieldPointers[firstFieldIndex] +
+                           fieldPointers.get()[firstFieldIndex] +
                            sizeOfNullIndicatorArray;
   return sizeOfInputData;
 }
@@ -1016,7 +1022,7 @@ bool Record::getAttributeValue(r_slot fieldNumber, char *attributeValue) {
     isNull = true;
     return isNull;
   }
-  r_slot fieldStartPointer = fieldPointers[fieldNumber];
+  r_slot fieldStartPointer = fieldPointers.get()[fieldNumber];
   Attribute attributeMetaData = recordDescriptor[fieldNumber];
   if (attributeMetaData.type == TypeVarChar) {
     int lengthOfString = 0;
@@ -1044,7 +1050,8 @@ AttrType Record::getAttributeType(const string &attributeName) {
 
 bool Record::isFieldNull(r_slot fieldIndex) {
   int byteNumber = fieldIndex / 8;
-  bool isNull = nullIndicatorArray[byteNumber] & (1 << (7 - fieldIndex % 8));
+  bool isNull =
+      nullIndicatorArray.get()[byteNumber] & (1 << (7 - fieldIndex % 8));
   return isNull;
 }
 
@@ -1217,15 +1224,14 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
   //  }
 
   void *recordData = (char *)malloc(PAGE_SIZE);
-  Record *record = NULL;
+  shared_ptr<Record> record;
   while (!hitFound && isEOF != RBFM_EOF) {
     SlotDirectory slot;
     getSlotForRID(pageData, tempRID, slot);
     if (slot.offset != USHRT_MAX) {
       memset(recordData, 0, PAGE_SIZE);
       memcpy(recordData, pageData + slot.offset, slot.length);
-      delete record;
-      record = new Record(recordDescriptor, (char *)recordData);
+      record = make_shared<Record>(recordDescriptor, (char *)recordData);
 
       if (!(record->isTombstone())) {
         char *attributeValue = (char *)malloc(PAGE_SIZE);
@@ -1307,12 +1313,10 @@ RC RBFM_ScanIterator::getNextRecord(RID &rid, void *data) {
   if (!hitFound && isEOF == RBFM_EOF) {
     free(recordData);
     recordData = NULL;
-    delete record;
     return isEOF;
   } else {
     free(recordData);
     recordData = NULL;
-    delete record;
     return success;
   }
 }
@@ -1568,9 +1572,11 @@ char *RecordBasedFileManager::readRecordInInternalFormat(FileHandle &fileHandle,
 }
 
 Record::~Record() {
-  free(this->inputData);
-  free(this->fieldPointers);
-  free(this->nullIndicatorArray);
+  if (!isTombstone()) {
+    //    free(this->nullIndicatorArray);
+    //    free(this->inputData);
+    //    free(this->fieldPointers);
+  }
 }
 
 RawRecord::RawRecord(const char *rawRecord, const vector<Attribute> &attrs) {
@@ -1599,21 +1605,26 @@ void RawRecord::setUpAttributeValue() {
       continue;
     }
     // if the value is not null
-    value.data = new char[PAGE_SIZE]();
+    //    value.data = new char[PAGE_SIZE]();
 
     switch (value.type) {
       case TypeInt:
-        memcpy(value.data, rawRecord + offset, sizeof(int));
+        //        memcpy(value.data, rawRecord + offset, sizeof(int));
+        value.data = (char *)rawRecord + offset;
+        value.size = sizeof(int);
         offset += sizeof(int);
         break;
       case TypeReal:
-        memcpy(value.data, rawRecord + offset, sizeof(int));
+        //        memcpy(value.data, rawRecord + offset, sizeof(int));
+        value.data = (char *)rawRecord + offset;
+        value.size = sizeof(float);
         offset += sizeof(int);
         break;
       case TypeVarChar:
         int length;
         memcpy(&length, rawRecord + offset, sizeof(int));
-        memcpy(value.data, rawRecord + offset, sizeof(length) + length);
+        value.data = (char *)rawRecord + offset;
+        value.size = sizeof(length) + length;
         offset += sizeof(length) + length;
         break;
     }
@@ -1622,11 +1633,11 @@ void RawRecord::setUpAttributeValue() {
   }
 }
 
-Value &RawRecord::getAttributeValue(int index) {
+Value RawRecord::getAttributeValue(int index) {
   return (attributeValue[index]);
 }
 
-Value &RawRecord::getAttributeValue(Attribute &attribute) {
+Value RawRecord::getAttributeValue(Attribute &attribute) {
   for (size_t i = 0; i < attributes.size(); ++i) {
     if (attributes[i].name.compare(attribute.name) == 0)
       return (getAttributeValue(i));
@@ -1635,7 +1646,7 @@ Value &RawRecord::getAttributeValue(Attribute &attribute) {
   exit(1);
 }
 
-Value &RawRecord::getAttributeValue(const string &attributeName) {
+Value RawRecord::getAttributeValue(const string &attributeName) {
   for (size_t i = 0; i < attributes.size(); ++i) {
     if (attributes[i].name.compare(attributeName) == 0)
       return (getAttributeValue(i));
@@ -1686,7 +1697,7 @@ int getSizeForNullIndicator(int fieldCount) {
 }
 
 RawRecord::~RawRecord() {
-  for (Value v : attributeValue) {
-    delete[]((char *)v.data);
-  }
+  //  for (Value v : attributeValue) {
+  //    delete[]((char *)v.data);
+  //  }
 }
