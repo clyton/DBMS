@@ -314,14 +314,14 @@ struct Value {
   bool operator<(const Value &o) const {
     if (data == nullptr && o.data == nullptr) return true;
 
-    if (data == nullptr && o.data != nullptr) return true;
+    if (data == nullptr && o.data != nullptr) return false;
 
     if (data != nullptr && o.data == nullptr) return false;
 
     switch (type) {
       case TypeInt: {
-        unsigned int *myInt = (unsigned int *)data;
-        unsigned int *otherInt = (unsigned int *)o.data;
+        int *myInt = (int *)data;
+        int *otherInt = (int *)o.data;
         return ((*myInt - *otherInt) < 0);
       }
       case TypeReal: {
@@ -346,9 +346,9 @@ struct Value {
 class RawRecord {
  public:
   RawRecord(const char *rawRecord, const vector<Attribute> &attrs);
-  Value &getAttributeValue(const string &attrName);
-  Value &getAttributeValue(Attribute &attr);
-  Value &getAttributeValue(int attrIndex);
+  Value getAttributeValue(const string &attrName);
+  Value getAttributeValue(Attribute &attr);
+  Value getAttributeValue(int attrIndex);
   bool isFieldNull(int index);
   const unsigned char *getNullIndicatorArray() const;
   int getNullIndicatorSize() const;

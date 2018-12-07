@@ -1633,11 +1633,11 @@ void RawRecord::setUpAttributeValue() {
   }
 }
 
-Value &RawRecord::getAttributeValue(int index) {
+Value RawRecord::getAttributeValue(int index) {
   return (attributeValue[index]);
 }
 
-Value &RawRecord::getAttributeValue(Attribute &attribute) {
+Value RawRecord::getAttributeValue(Attribute &attribute) {
   for (size_t i = 0; i < attributes.size(); ++i) {
     if (attributes[i].name.compare(attribute.name) == 0)
       return (getAttributeValue(i));
@@ -1646,7 +1646,7 @@ Value &RawRecord::getAttributeValue(Attribute &attribute) {
   exit(1);
 }
 
-Value &RawRecord::getAttributeValue(const string &attributeName) {
+Value RawRecord::getAttributeValue(const string &attributeName) {
   for (size_t i = 0; i < attributes.size(); ++i) {
     if (attributes[i].name.compare(attributeName) == 0)
       return (getAttributeValue(i));

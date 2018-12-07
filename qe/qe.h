@@ -1,6 +1,7 @@
 #ifndef _qe_h_
 #define _qe_h_
 
+#include <map>
 #include <vector>
 
 #include "../ix/ix.h"
@@ -182,7 +183,7 @@ class Filter : public Iterator {
   Filter(Iterator *input,            // Iterator of input R
          const Condition &condition  // Selection condition
   );
-  ~Filter() {};
+  ~Filter(){};
 
   RC getNextTuple(void *data);
   // For attribute in vector<Attribute>, name it as rel.attr
@@ -248,6 +249,11 @@ class BNLJoin : public Iterator {
   vector<Attribute> rightInAttributes;
   vector<Attribute> joinedAttributes;
   ConditionEvaluator *cEval;
+  std::map<Value, vector<char *>> hashTable;
+  vector<char *> matchingLeftRecords;
+  char *joinedRecBuffer;
+  const size_t MAX_JOINED_RECORD_SIZE = PAGE_SIZE * 2;
+  bool tableEmpty = false;
 };
 
 class INLJoin : public Iterator {

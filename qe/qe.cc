@@ -138,6 +138,10 @@ BNLJoin::BNLJoin(
   // setup condition Evaluator
   this->cEval = new ConditionEvaluator(this->condition, joinedAttributes);
   //  loadNextBlockInMemory();
+  joinedRecBuffer = new char[MAX_JOINED_RECORD_SIZE]();
+  //  RC isLeftEmpty = loadNextBlockInMemory();
+  //  RC isRightEmpty = rightIn->getNextTuple(rightTupleBuffer);
+  //  tableEmpty = (isLeftEmpty == QE_EOF) || (isRightEmpty == QE_EOF);
 };
 
 BNLJoin::~BNLJoin() {
@@ -152,6 +156,10 @@ BNLJoin::~BNLJoin() {
   if (cEval) {
     delete cEval;
     cEval = nullptr;
+  }
+  if (joinedRecBuffer) {
+    delete[] joinedRecBuffer;
+    joinedRecBuffer = nullptr;
   }
 }
 
@@ -168,15 +176,15 @@ void BNLJoin::getAttributes(vector<Attribute>& attrs) const {
  * @return false if you've reached the end of left buf, true otherwise
  */
 bool BNLJoin::getNextLeftRecord(const char*& leftTupleBuf) {
-  if (leftTableBufferOffset >= this->sizeOfLeftBuffer) {
+  if (matchingLeftRecords.empty()) {
     leftTupleBuf = nullptr;
     return (false);
   }
 
-  RawRecord currentRecord(leftTableBuffer + leftTableBufferOffset,
-                          leftInAttributes);
-  leftTupleBuf = leftTableBuffer + leftTableBufferOffset;
-  leftTableBufferOffset += currentRecord.getRecordSize();
+  leftTupleBuf = matchingLeftRecords.back();
+  RawRecord currentRecord(leftTupleBuf, leftInAttributes);
+  //  leftTableBufferOffset += currentRecord.getRecordSize();
+  matchingLeftRecords.pop_back();
   return (true);
 }
 
@@ -185,42 +193,39 @@ RC BNLJoin::resetLeftOffset() {
   if (sizeOfLeftBuffer == 0) {
     isEOF = loadNextBlockInMemory();
   }
-  leftTableBufferOffset = 0;
+  //  leftTableBufferOffset = 0;
   return (isEOF);
 }
 
 RC BNLJoin::setState() {
-  const char* leftTuple = nullptr;
-  if (this->getNextLeftRecord(leftTuple)) {
-    // there is a next record to read from left in-memory buffer
-    // here you will use the existing rightTupleBuffer
-    // and the next left tuple
-    leftTuplePointer = leftTuple;
-
-  } else {  //  there is no more left-records to read
-    // here you will read a new rightTupleBuffer
-    if (rightIn->getNextTuple(rightTupleBuffer) != QE_EOF) {
-      // if there are more right tuples to read
-      RC isEOF = resetLeftOffset();  // start reading left table from start
-      if (isEOF == QE_EOF) return QE_EOF;
-      getNextLeftRecord(leftTuple);
-      leftTuplePointer = leftTuple;
-    } else {
-      // if there are no more right records to read
-      RC areThereLeftBlocksToRead = loadNextBlockInMemory();
-      if (areThereLeftBlocksToRead != QE_EOF) {
-        // if there are more left blocks to read
-        getNextLeftRecord(leftTuple);
-        leftTuplePointer = leftTuple;
-        rightIn->setIterator();
-        rightIn->getNextTuple(rightTupleBuffer);
-      } else {
-        // if there are no left blocks to read // everything has been read
-        return QE_EOF;  // here we return failure;
-      }
-    }
+  if (!matchingLeftRecords.empty()) {
+    leftTuplePointer = matchingLeftRecords.back();
+    matchingLeftRecords.pop_back();
+    return (success);
   }
-  return (success);
+
+  if (hashTable.empty() | rightIn->getNextTuple(rightTupleBuffer) == QE_EOF) {
+    rightIn->setIterator();
+    rightIn->getNextTuple(rightTupleBuffer);
+    bool loadSuccess = loadNextBlockInMemory() != QE_EOF;
+    if (!loadSuccess) return QE_EOF;
+  }
+
+  map<Value, vector<char*>>::iterator it;
+  do {
+    RawRecord rightRecord(rightTupleBuffer, rightInAttributes);
+    Value joinKey = rightRecord.getAttributeValue(condition.rhsAttr);
+    it = hashTable.find(joinKey);
+  } while (it == hashTable.end() &&
+           rightIn->getNextTuple(rightTupleBuffer) != QE_EOF);
+
+  if (it != hashTable.end()) {
+    matchingLeftRecords = it->second;
+    leftTuplePointer = matchingLeftRecords.back();
+    matchingLeftRecords.pop_back();
+    return (success);
+  }
+  setState();  // else do the same thing for the next left block
 }
 
 /**
@@ -231,40 +236,35 @@ RC BNLJoin::setState() {
  */
 RC BNLJoin::getNextTuple(void* data) {
   // create a joined record buffer
-  const size_t MAX_JOINED_RECORD_SIZE = PAGE_SIZE * 2;
-  char* joinedRecBuffer = new char[MAX_JOINED_RECORD_SIZE]();
 
-  while (true) {
-    RC status = setState();  // set the left and right tuple
+  //  while (true) {
+  RC status = setState();  // set the left and right tuple
 
-    if (status == QE_EOF) {
-      delete[] joinedRecBuffer;
-      joinedRecBuffer = nullptr;
-      return QE_EOF;
-    }
-
-    // create raw record object to get record sizes
-    RawRecord leftRecord(leftTuplePointer, leftInAttributes);
-    RawRecord rightRecord(rightTupleBuffer, rightInAttributes);
-
-    //    // get record sizes for left and right records
-    //    size_t sizeOfLeftRecord = leftRecord.getRecordSize();
-    //    size_t sizeOfRightRecord = rightRecord.getRecordSize();
-
-    // prepare a joined record buffer by copying left and right records
-    joinRecords(leftRecord, rightRecord, joinedRecBuffer, joinedAttributes);
-    RawRecord joinedRecord(joinedRecBuffer, joinedAttributes);
-
-    // Evaluate the condition on this join
-    if (cEval->evaluateFor(joinedRecord)) {
-      // if the join satisfies the condition then copy the joined record
-      // to data buffer and return status success
-      memcpy(data, joinedRecord.getBuffer(), joinedRecord.getRecordSize());
-      break;
-    }
+  if (status == QE_EOF) {
+    return QE_EOF;
   }
-  delete[] joinedRecBuffer;
-  joinedRecBuffer = nullptr;
+
+  // create raw record object to get record sizes
+  RawRecord leftRecord(leftTuplePointer, leftInAttributes);
+  RawRecord rightRecord(rightTupleBuffer, rightInAttributes);
+
+  //    // get record sizes for left and right records
+  //    size_t sizeOfLeftRecord = leftRecord.getRecordSize();
+  //    size_t sizeOfRightRecord = rightRecord.getRecordSize();
+
+  // prepare a joined record buffer by copying left and right records
+  memset(joinedRecBuffer, 0, MAX_JOINED_RECORD_SIZE);
+  joinRecords(leftRecord, rightRecord, joinedRecBuffer, joinedAttributes);
+  RawRecord joinedRecord(joinedRecBuffer, joinedAttributes);
+
+  //    // Evaluate the condition on this join
+  //    if (cEval->evaluateFor(joinedRecord)) {
+  //      // if the join satisfies the condition then copy the joined record
+  //      // to data buffer and return status success
+  memcpy(data, joinedRecord.getBuffer(), joinedRecord.getRecordSize());
+  //      break;
+  //    }
+  //  }
 
   return (success);
 }
@@ -314,6 +314,7 @@ void joinRecords(const RawRecord& leftRec, const RawRecord& rightRec,
 }
 
 RC BNLJoin::loadNextBlockInMemory() {
+  hashTable.clear();
   memset(leftTableBuffer, 0, PAGE_SIZE * numPages);
   size_t lTblBuffOffset = 0;
   RC Left_EOF = 0;
@@ -321,10 +322,18 @@ RC BNLJoin::loadNextBlockInMemory() {
   while (lTblBuffOffset < numPages * PAGE_SIZE) {
     Left_EOF = leftIn->getNextTuple(leftRecordBuffer);
     if (Left_EOF == QE_EOF) break;
-    RawRecord leftRecord(leftRecordBuffer, leftInAttributes);
-    size_t sizeOfRecord = leftRecord.getRecordSize();
+    RawRecord tempLeftRec(leftRecordBuffer, leftInAttributes);
+    size_t sizeOfRecord = tempLeftRec.getRecordSize();
+
     memcpy(this->leftTableBuffer + lTblBuffOffset, leftRecordBuffer,
            sizeOfRecord);
+    // leftRecord will die at end of iteration.
+    // Therefore getAttributeValue returns a copy of value
+    RawRecord leftRecord(leftTableBuffer + lTblBuffOffset, leftInAttributes);
+    // value ultimately points to leftTableBuffer. So we need to maintain
+    // its lifetime
+    Value joinAttrKey = leftRecord.getAttributeValue(condition.lhsAttr);
+    hashTable[joinAttrKey].push_back(this->leftTableBuffer + lTblBuffOffset);
     lTblBuffOffset += sizeOfRecord;
   }
   sizeOfLeftBuffer = lTblBuffOffset;  // set the size of the left buffer
