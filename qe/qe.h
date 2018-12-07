@@ -3,7 +3,6 @@
 
 #include <map>
 #include <vector>
-#include <map>
 
 #include "../ix/ix.h"
 #include "../rbf/rbfm.h"
@@ -284,6 +283,9 @@ class INLJoin : public Iterator {
   vector<Attribute> lAttr;
   vector<Attribute> rAttr;
   char *lowKey, *highKey;
+  char *joinedRecBuf;
+  const size_t MAX_JOINED_RECORD_SIZE = 2 * PAGE_SIZE;
+
   RC setState();
   RC resetRightIterator();  // close and open a new iterator
 };
@@ -308,11 +310,11 @@ class GHJoin : public Iterator {
 class Aggregate : public Iterator {
   // Aggregation operator
  public:
-  Iterator* iterator;
-	Attribute aggAttr;
-	Attribute groupAttr;
-	AggregateOp op;
-	vector<Attribute> aggAttrs;
+  Iterator *iterator;
+  Attribute aggAttr;
+  Attribute groupAttr;
+  AggregateOp op;
+  vector<Attribute> aggAttrs;
   map<string, float> groupedVals;
   map<string, float>::iterator nextGroupedVal;
   bool isGroupBy;
