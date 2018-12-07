@@ -188,15 +188,6 @@ bool BNLJoin::getNextLeftRecord(const char*& leftTupleBuf) {
   return (true);
 }
 
-RC BNLJoin::resetLeftOffset() {
-  RC isEOF = 0;
-  if (sizeOfLeftBuffer == 0) {
-    isEOF = loadNextBlockInMemory();
-  }
-  //  leftTableBufferOffset = 0;
-  return (isEOF);
-}
-
 RC BNLJoin::setState() {
   if (!matchingLeftRecords.empty()) {
     leftTuplePointer = matchingLeftRecords.back();

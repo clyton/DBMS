@@ -231,7 +231,7 @@ class BNLJoin : public Iterator {
 
  private:
   RC success = 0;
-  RC failure = 1;
+  RC failure = -1;
   Iterator *leftIn;
   TableScan *rightIn;
   Condition condition;
@@ -242,7 +242,6 @@ class BNLJoin : public Iterator {
   unsigned numPages;
   int sizeOfLeftBuffer = 0;
   RC loadNextBlockInMemory();
-  RC resetLeftOffset();
   RC setState();
   bool getNextLeftRecord(const char *&leftTupleBuf);
   vector<Attribute> leftInAttributes;
@@ -253,7 +252,6 @@ class BNLJoin : public Iterator {
   vector<char *> matchingLeftRecords;
   char *joinedRecBuffer;
   const size_t MAX_JOINED_RECORD_SIZE = PAGE_SIZE * 2;
-  bool tableEmpty = false;
 };
 
 class INLJoin : public Iterator {
