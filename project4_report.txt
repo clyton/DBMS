@@ -13,7 +13,61 @@ gcc version : 5.4.0
 
 
 2. Catalog information about Index
-- Show your catalog information about an index (tables, columns). 
+- Show your catalog information about an index (tables, columns).
+
+* 'Tables' Catalog table schema
+
+| table-type:int | table-id:int | table-name:varchar(50) | file-name:varchar(50) |
+|----------------+--------------+------------------------+-----------------------|
+| SYSTEM=0       |            1 | Tables                 | Tables.tbl            |
+| SYSTEM=0       |            2 | Columns                | Columns.tbl           |
+| SYSTEM=0       |            3 | Index                  | Index.tbl             |
+| USER=1         |            4 | Employee               | Employee.tbl          |
+
+The table type column decides whether user has privilege to update those tables.
+The file name column stores information about the file where actual records of that table are stored.
+
+
+* 'Columns' Catalog table design
+
+| table-id:int | column-name:varchar(50) | column-type:int | column-length:int | column-position:int |
+|--------------+-------------------------+-----------------+-------------------+---------------------|
+|            1 | table-id                | TypeInt         |                 4 |                   1 |
+|            1 | table-name              | TypeVarChar     |                50 |                   2 |
+|            1 | file-name               | TypeVarChar     |                50 |                   3 |
+|            2 | table-id                | TypeInt         |                 4 |                   1 |
+|            2 | column-name             | TypeVarChar     |                50 |                   2 |
+|            2 | column-type             | TypeInt         |                 4 |                   3 |
+|            2 | column-length           | TypeInt         |                 4 |                   4 |
+|            2 | column-position         | TypeInt         |                 4 |                   5 |
+|            3 | table-id                | TypeInt         |                 4 |                   1 |
+|            3 | index-name              | TypeVarChar     |                50 |                   2 |
+|            3 | index-file-name         | TypeVarChar     |                50 |                   3 |
+|            4 | empname                 | TypeVarChar     |                30 |                   1 |
+|            4 | age                     | TypeInt         |                 4 |                   2 |
+|            4 | height                  | TypeReal        |                 4 |                   3 |
+|            4 | salary                  | TypeInt         |                 4 |                   4 |
+
+table-id: This column maps a row in the Columns' table catalog to the table name in Tables catalog
+column-name: attribute names of a table
+column-type: TypeInt, TypeVarChar and TypeReal are enums representing an int value
+column-length: Gives length information about each attribute in a table
+column-position : This gives information about the field position of a table attribute
+
+* 'Index' Catalog table schema
+
+| table-id:int | index-name:varchar(50) | index-file-name:varchar(50) |
++--------------+------------------------+-----------------------------|
+|            5 | B                      | left2_B_idx                 |
+|            6 | C                      | right_C_idx                 |
+|            7 | B                      | right_B_idx                 |
+|            8 | B                      | largeleft2_B_idx            |
+
+
+- When the catalog is created, a file is created for the index catalog Index.tbl
+- table-id:
+- index-name:
+-index-file-name:
 
 
 3. Block Nested Loop Join (If you have implemented this feature)
@@ -64,3 +118,4 @@ Aggregation (Group based hash) ->
 - The getNextTuple returns the next pair from the map in the format of the output (1 byte null indicator + (length of string + string value if varchar) value)
 
 - Other implementation details:
+- 
