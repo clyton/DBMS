@@ -73,22 +73,11 @@ column-position : This gives information about the field position of a table att
 3. Block Nested Loop Join (If you have implemented this feature)
 - Describe how your block nested loop join works (especially, how you manage the given buffers.)
 * steps
-  1. leftMemBuf <- load the left table pages in memory using leftIn if rightIn has reached EOF
-  2. If leftIn has reached end of file then return 
-  3. rRec <- read next tuple from right table if cursor of leftMemBuf has reached end of buffer
-  4. lRec <- cursor of leftMemBuf
-  5. join lRec with rRec 
-  6. if lRec join rRec satisfies condition
-     1. jLR <- join lRec rRec
-     2. advance cursor of leftMemBuf
-     3. if on advancing cursor is invalid, read rRec <- read next tuple from rightIn
-     4. set cursor of leftMemBuf to 0
-     5. return success
-  7. 
-
-
+ Keep reading records from left table until we have read numPages and form in-memory hash table. Then read one record at a time from right table and probe the table. Store matching records in a queue and return the top record. Once all records in queue have been joined and returned, read next right tuple and repeat 
+ 
+ 
 4. Index Nested Loop Join (If you have implemented this feature)
-- Describe how your grace hash join works.
+- For each record in left table, pick the join attribute and search for index in right table. Then return the matching rows and maintain state for next call
 
 
 5. Grace Hash Join (If you have implemented this feature)
